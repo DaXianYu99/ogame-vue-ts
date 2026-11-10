@@ -101,7 +101,8 @@ export const tryGenerateMoon = (
       [ShipType.EspionageProbe]: 0,
       [ShipType.SolarSatellite]: 0,
       [ShipType.DarkMatterHarvester]: 0,
-      [ShipType.Deathstar]: 0
+      [ShipType.Deathstar]: 0,
+      [ShipType.StarAbyssFreighter]: 0
     },
     defense: {
       [DefenseType.RocketLauncher]: 0,

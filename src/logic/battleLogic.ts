@@ -1,24 +1,48 @@
 import type { Fleet, Resources, BattleResult, Officer, TechnologyType } from '@/types/game'
 import { DefenseType, OfficerType } from '@/types/game'
 import { workerManager } from '@/workers/workerManager'
-import { MOON_CONFIG } from '@/config/gameConfig'
+import { MOON_CONFIG, OFFICERS } from '@/config/gameConfig'
 import { generateId } from '@/utils/id'
 
 /**
  * 执行战斗模拟
  * 使用 Web Worker 在后台线程中执行计算密集型的战斗模拟
  */
+/**
+ * 读取特殊军官的战斗加成。
+ * 只查帝王槽位：NPC 侧在 fleetLogic 中传入 {}，恒返回 0，加成只在玩家侧生效。
+ * 原版 6 个军官的 defenseBonus 仍保持上游「账面存在、逻辑未消费」的行为，
+ * 以免改动原版平衡；若想让所有军官生效，改为 officerLogic.calculateActiveBonuses 全量读取即可。
+ */
+const getOfficerCombatBonuses = (officers: Record<OfficerType, Officer> | undefined) => {
+  const now = Date.now()
+  const special = officers?.[OfficerType.Sovereign]
+  if (!special || !special.active || (special.expiresAt && special.expiresAt <= now)) {
+    return { attack: 0, defense: 0 }
+  }
+  const benefits = OFFICERS[OfficerType.Sovereign]?.benefits
+  return {
+    attack: benefits?.fleetAttackBonus || 0,
+    // 防御 +50% 与舰队防御 +30% 合并后走 Worker 现有的 defenseBonus 通道
+    defense: (benefits?.defenseBonus || 0) + (benefits?.fleetDefenseBonus || 0)
+  }
+}
+
 export const simulateBattle = async (
   attackerFleet: Partial<Fleet>,
   defenderFleet: Partial<Fleet>,
   defenderDefense: Partial<Record<DefenseType, number>>,
   defenderResources: Resources,
-  _attackerOfficers: Record<OfficerType, Officer>,
-  _defenderOfficers: Record<OfficerType, Officer>,
+  attackerOfficers: Record<OfficerType, Officer>,
+  defenderOfficers: Record<OfficerType, Officer>,
   attackerTechnologies: Record<TechnologyType, number>,
   defenderTechnologies: Record<TechnologyType, number>,
   battleToFinish: boolean = false // 战斗到底模式
 ): Promise<BattleResult> => {
+  // 军官战斗加成（NPC 侧为 {}，恒为 0）
+  const attackerCombat = getOfficerCombatBonuses(attackerOfficers)
+  const defenderCombat = getOfficerCombatBonuses(defenderOfficers)
+
   // 从科技系统读取实际科技等级
   const attackerWeaponTech = attackerTechnologies['weaponsTechnology'] || 0
   const attackerShieldTech = attackerTechnologies['shieldingTechnology'] || 0
@@ -34,14 +58,18 @@ export const simulateBattle = async (
       ships: attackerFleet,
       weaponTech: attackerWeaponTech,
       shieldTech: attackerShieldTech,
-      armorTech: attackerArmorTech
+      armorTech: attackerArmorTech,
+      attackBonus: attackerCombat.attack,
+      defenseBonus: attackerCombat.defense
     },
     defender: {
       ships: defenderFleet,
       defense: defenderDefense,
       weaponTech: defenderWeaponTech,
       shieldTech: defenderShieldTech,
-      armorTech: defenderArmorTech
+      armorTech: defenderArmorTech,
+      attackBonus: defenderCombat.attack,
+      defenseBonus: defenderCombat.defense
     },
     maxRounds: battleToFinish ? 100 : 6 // 战斗到底模式最多100回合，经典模式6回合
   })

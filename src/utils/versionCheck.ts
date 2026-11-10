@@ -6,6 +6,20 @@ export interface VersionInfo {
   downloadUrl: string
 }
 
+// 语义化版本比较：返回 1 表示 a>b，-1 表示 a<b，0 表示相等（忽略开头的 v）
+const compareVersion = (a: string, b: string): number => {
+  const pa = a.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+  const pb = b.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0
+    const y = pb[i] ?? 0
+    if (x > y) return 1
+    if (x < y) return -1
+  }
+  return 0
+}
+
 // 检查GitHub最新版本
 export const checkLatestVersion = async (lastCheckTime: number, updateCheckTime: (time: number) => void): Promise<VersionInfo | null> => {
   const now = Date.now()
@@ -32,8 +46,8 @@ export const checkLatestVersion = async (lastCheckTime: number, updateCheckTime:
     // 更新最后检查时间
     updateCheckTime(now)
 
-    // 比较版本号
-    if (githubVersion && githubVersion !== pkg.version) {
+    // 比较版本号：仅当上游版本严格高于本地时才提示（避免把更旧的版本当作「新版本」）
+    if (githubVersion && compareVersion(githubVersion, pkg.version) > 0) {
       return {
         version: githubVersion,
         releaseNotes: data.body || '',

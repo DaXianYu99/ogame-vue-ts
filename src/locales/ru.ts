@@ -225,7 +225,8 @@ export default {
     espionageProbe: 'Шпионский зонд',
     solarSatellite: 'Солнечный спутник',
     darkMatterHarvester: 'Сборщик тёмной материи',
-    deathstar: 'Звезда Смерти'
+    deathstar: 'Звезда Смерти',
+    starAbyssFreighter: 'Грузовик Звёздной Бездны'
   },
   shipDescriptions: {
     lightFighter: 'Базовая боевая единица',
@@ -242,7 +243,8 @@ export default {
     espionageProbe: 'Разведывает вражеские планеты',
     solarSatellite: 'Обеспечивает дополнительную энергию, выход зависит от температуры планеты (выше при жаре)',
     darkMatterHarvester: 'Специальный корабль для сбора тёмной материи',
-    deathstar: 'Абсолютное оружие, способное уничтожать целые планеты'
+    deathstar: 'Абсолютное оружие, способное уничтожать целые планеты',
+    starAbyssFreighter: 'Сверхгигантский транспорт с колоссальной грузоподъемностью'
   },
   defenses: {
     rocketLauncher: 'Ракетная установка',
@@ -357,7 +359,8 @@ export default {
     darkMatterSpecialist: 'Специалист по тёмной материи',
     resourceBonus: 'Бонус производства ресурсов',
     darkMatterBonus: 'Бонус производства тёмной материи',
-    energyBonus: 'Бонус производства энергии'
+    energyBonus: 'Бонус производства энергии',
+    sovereign: 'Emperor',
   },
   officerDescriptions: {
     commander: 'Улучшает скорость строительства и управление',
@@ -365,7 +368,8 @@ export default {
     engineer: 'Улучшает энергию и оборону',
     geologist: 'Улучшает производство ресурсов',
     technocrat: 'Улучшает скорость исследований и шпионаж',
-    darkMatterSpecialist: 'Улучшает эффективность сбора тёмной материи'
+    darkMatterSpecialist: 'Улучшает эффективность сбора тёмной материи',
+    sovereign: 'Emperor: an all-round special officer; bonuses apply only on the player side',
   },
   queue: {
     title: 'Активные задачи',
@@ -671,7 +675,10 @@ export default {
     dismissMessage: 'Вы уверены, что хотите уволить {name}? Средства не возвращаются.',
     hireFailed: 'Найм не удался',
     renewFailed: 'Продление не удалось',
-    insufficientResources: 'Недостаточно ресурсов!'
+    insufficientResources: 'Недостаточно ресурсов!',
+    energyBonus: 'Energy Output',
+    fleetAttack: 'Fleet Attack',
+    fleetDefense: 'Fleet Defense',
   },
   galaxyView: {
     title: 'Галактика',

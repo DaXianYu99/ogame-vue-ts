@@ -176,7 +176,8 @@ export const ShipType = {
   EspionageProbe: 'espionageProbe',
   SolarSatellite: 'solarSatellite', // 太阳能卫星
   DarkMatterHarvester: 'darkMatterHarvester', // 暗物质采集船
-  Deathstar: 'deathstar' // 死星
+  Deathstar: 'deathstar', // 死星
+  StarAbyssFreighter: 'starAbyssFreighter' // 星渊货舰
 } as const
 
 export type ShipType = (typeof ShipType)[keyof typeof ShipType]
@@ -218,6 +219,7 @@ export interface Fleet {
   [ShipType.SolarSatellite]: number
   [ShipType.DarkMatterHarvester]: number
   [ShipType.Deathstar]: number
+  [ShipType.StarAbyssFreighter]: number
 }
 
 // 舰队任务类型
@@ -723,7 +725,8 @@ export const OfficerType = {
   Engineer: 'engineer', // 工程师 - 增加防御和能量
   Geologist: 'geologist', // 地质学家 - 增加资源产量
   Technocrat: 'technocrat', // 技术专家 - 减少研究时间
-  DarkMatterSpecialist: 'darkMatterSpecialist' // 暗物质专家 - 增加暗物质产量
+  DarkMatterSpecialist: 'darkMatterSpecialist', // 暗物质专家 - 增加暗物质产量
+  Sovereign: 'sovereign' // 特殊军官：帝王
 } as const
 
 export type OfficerType = (typeof OfficerType)[keyof typeof OfficerType]
@@ -744,6 +747,8 @@ export interface OfficerConfig {
     fleetSpeedBonus?: number // 舰队速度加成 (百分比)
     fuelConsumptionReduction?: number // 燃料消耗减少 (百分比)
     defenseBonus?: number // 防御加成 (百分比)
+    fleetAttackBonus?: number // 舰队攻击加成 (百分比，战斗中仅特殊军官消费)
+    fleetDefenseBonus?: number // 舰队防御加成 (百分比，与 defenseBonus 相加后进入战斗)
     additionalBuildQueue?: number // 额外建筑队列
     additionalFleetSlots?: number // 额外舰队槽位
     storageCapacityBonus?: number // 仓储容量加成 (百分比)

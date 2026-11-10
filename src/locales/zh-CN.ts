@@ -232,7 +232,8 @@ export default {
     espionageProbe: '间谍探测器',
     solarSatellite: '太阳能卫星',
     darkMatterHarvester: '暗物质采集船',
-    deathstar: '死星'
+    deathstar: '死星',
+    starAbyssFreighter: '星渊货舰'
   },
   shipDescriptions: {
     lightFighter: '基础战斗单位',
@@ -249,7 +250,8 @@ export default {
     espionageProbe: '侦察敌方星球',
     solarSatellite: '提供额外能源，产能受星球温度影响（温度越高产能越高）',
     darkMatterHarvester: '专门用于采集暗物质的特殊飞船',
-    deathstar: '终极武器，能够摧毁整个行星'
+    deathstar: '终极武器，能够摧毁整个行星',
+    starAbyssFreighter: '超巨型运输舰，货舱容量冠绝全宇宙，专为搬运海量资源而生'
   },
   defenses: {
     rocketLauncher: '火箭发射器',
@@ -356,7 +358,8 @@ export default {
     darkMatterSpecialist: '暗物质专家',
     resourceBonus: '资源产量加成',
     darkMatterBonus: '暗物质产量加成',
-    energyBonus: '电力产量加成'
+    energyBonus: '电力产量加成',
+    sovereign: '帝王',
   },
   officerDescriptions: {
     commander: '提升建筑速度和管理能力',
@@ -364,7 +367,8 @@ export default {
     engineer: '提升能源和防御能力',
     geologist: '提升资源产量',
     technocrat: '提升研究速度和间谍能力',
-    darkMatterSpecialist: '提升暗物质采集效率'
+    darkMatterSpecialist: '提升暗物质采集效率',
+    sovereign: '帝王：全能型特殊军官，加成仅在玩家侧生效',
   },
   queue: {
     title: '进行中的任务',
@@ -662,7 +666,10 @@ export default {
     dismissMessage: '确定要解雇 {name} 吗？不会返还任何费用。',
     hireFailed: '招募失败',
     renewFailed: '续约失败',
-    insufficientResources: '资源不足！'
+    insufficientResources: '资源不足！',
+    energyBonus: '能量产出',
+    fleetAttack: '舰队攻击',
+    fleetDefense: '舰队防御',
   },
   galaxyView: {
     title: '星系',

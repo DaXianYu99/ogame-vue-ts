@@ -284,7 +284,8 @@
     [ShipType.EspionageProbe]: 0,
     [ShipType.SolarSatellite]: 0,
     [ShipType.DarkMatterHarvester]: 0,
-    [ShipType.Deathstar]: 0
+    [ShipType.Deathstar]: 0,
+    [ShipType.StarAbyssFreighter]: 0
   })
 
   // 每种舰船的拆除数量
@@ -303,7 +304,8 @@
     [ShipType.EspionageProbe]: 0,
     [ShipType.SolarSatellite]: 0,
     [ShipType.DarkMatterHarvester]: 0,
-    [ShipType.Deathstar]: 0
+    [ShipType.Deathstar]: 0,
+    [ShipType.StarAbyssFreighter]: 0
   })
 
   const buildShip = (shipType: ShipType, quantity: number): { success: boolean; reason?: string } => {

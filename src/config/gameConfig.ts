@@ -141,7 +141,7 @@ export const BUILDINGS: Record<BuildingType, BuildingConfig> = {
     baseTime: 20,
     costMultiplier: 1.8,
     spaceUsage: 3,
-    fleetStorageBonus: 1500, // 每级增加1500舰队仓储，比船坞更高
+    fleetStorageBonus: 4500, // 每级增加4500舰队仓储（npc-expansion: 1500 → 4500，与船坞同步放大）
     planetOnly: true, // OGame规则：月球不能建造机库
     requirements: { [BuildingType.RoboticsFactory]: 1 }, // 只需要1级机器人工厂
     levelRequirements: {
@@ -1181,6 +1181,26 @@ export const SHIPS: Record<ShipType, ShipConfig> = {
       [DefenseType.SmallShieldDome]: 1250,
       [DefenseType.LargeShieldDome]: 1250
     }
+  },
+
+  [ShipType.StarAbyssFreighter]: {
+    id: ShipType.StarAbyssFreighter,
+    name: '星渊货舰',
+    description: '超巨型运输舰，货舱容量冠绝全宇宙，专为搬运海量资源而生',
+    cost: { metal: 50000000, crystal: 40000000, deuterium: 10000000, darkMatter: 20000, energy: 0 },
+    buildTime: 300,
+    cargoCapacity: 1000000000,
+    attack: 5000,
+    shield: 3000,
+    armor: 20000,
+    speed: 10000,
+    fuelConsumption: 2000,
+    storageUsage: 100,
+    requirements: {
+      [BuildingType.Shipyard]: 8,
+      [TechnologyType.HyperspaceDrive]: 5,
+      [TechnologyType.DarkMatterTechnology]: 1
+    }
   }
 }
 
@@ -1386,8 +1406,49 @@ export const OFFICERS: Record<OfficerType, OfficerConfig> = {
     benefits: {
       darkMatterProductionBonus: 25 // 暗物质产量 +25%
     }
+  },
+  [OfficerType.Sovereign]: {
+    id: OfficerType.Sovereign,
+    name: '帝王',
+    description: '帝王：全能型特殊军官，加成仅在玩家侧生效',
+    cost: { metal: 0, crystal: 0, deuterium: 0, darkMatter: 1000, energy: 0 },
+    weeklyMaintenance: { metal: 0, crystal: 0, deuterium: 0, darkMatter: 0, energy: 0 },
+    benefits: {
+      buildingSpeedBonus: 50,
+      researchSpeedBonus: 30,
+      storageCapacityBonus: 50,
+      fleetSpeedBonus: 50,
+      fuelConsumptionReduction: 30,
+      defenseBonus: 50,
+      energyProductionBonus: 30,
+      additionalBuildQueue: 3,
+      additionalFleetSlots: 5,
+      fleetAttackBonus: 30,
+      fleetDefenseBonus: 30
+    }
   }
 }
+
+// [npc-expansion] NPC 扩张与成长配置
+// 900 个坐标格 = 9 星系 × 10 太阳系 × 10 位置；maxNpcs × maxPlanetsPerNpc 必须留余量给玩家。
+export const NPC_EXPANSION_CONFIG = {
+  maxNpcs: 70, // 势力数量上限（旧存档自动裁剪，保留距母星最近的）
+  maxPlanetsPerNpc: 10, // 每个 NPC 的行星上限
+  maxMoonsPerNpc: 5, // 每个 NPC 的月球上限（只设上限，不自动生成）
+  checkInterval: 30, // 实力评估间隔（秒），原版为 180
+  growthSteps: 8, // 每次评估推进的建筑/科技级数与造舰批数（npc-expansion: 3 → 8，加快发育）
+  fleetGrowthRate: 0.15, // 每次评估的舰队战力滚动增长目标
+  maxFleetPower: 50000000, // 已弃用：npcGrowthLogic 不再以此值硬性封顶舰队战力（现仅受舰队仓储与资源约束）；保留字段以兼容旧存档与工具
+  batchCap: 200, // 单批造舰数量上限
+  defenseBudgetRatio: 0.1, // 每次检查用于补充防御的资源比例（运营新星球）
+  fleetFirstPlanetThreshold: 5, // 行星数 > 此值时优先发展舰队，否则优先发展星球
+  redistributeRatio: 0.5, // 每轮从富余行星抽调的资源比例
+  storageTargetRatio: 0.5, // 资源调配的目标水位（占仓储容量）
+  colonizeInterval: 1200, // 殖民节奏（秒）：每 20 分钟最多占一颗新星球
+  maxColonyShips: 2, // 殖民船总数达到此值即停止建造（>2 停止）
+  autoColonize: true, // 允许 NPC 逐步殖民行星到上限
+  autoGenerateMoons: false // 不主动生成月球（仍可由战斗残骸场偶然产生）
+} as const
 
 // 月球配置
 export const MOON_CONFIG = {
@@ -1414,9 +1475,9 @@ export const PLANET_CONFIG = {
 
 // 舰队仓储配置
 export const FLEET_STORAGE_CONFIG = {
-  baseStorage: 1000, // 基础舰队仓储
-  shipyardBonus: 1000, // 每级造船厂增加的仓储
-  computerTechBonus: 500 // 每级计算机技术全局增加的仓储
+  baseStorage: 3000, // 基础舰队仓储（npc-expansion: 1000 → 3000，抬高容量地板）
+  shipyardBonus: 3000, // 每级造船厂增加的仓储（1000 → 3000）
+  computerTechBonus: 1500 // 每级计算机技术全局增加的仓储（500 → 1500）
 }
 
 // 外交系统配置

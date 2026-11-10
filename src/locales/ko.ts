@@ -219,7 +219,8 @@ export default {
     espionageProbe: '정찰기',
     solarSatellite: '태양광 위성',
     darkMatterHarvester: '암흑 물질 채취선',
-    deathstar: '데스스타'
+    deathstar: '데스스타',
+    starAbyssFreighter: '성혼 화물선'
   },
   shipDescriptions: {
     lightFighter: '기본 전투 유닛',
@@ -236,7 +237,8 @@ export default {
     espionageProbe: '적 행성 정찰',
     solarSatellite: '추가 에너지 제공, 행성 온도에 따라 생산량 변동 (온도가 높을수록 증가)',
     darkMatterHarvester: '암흑 물질 채취 전용 특수 함선',
-    deathstar: '행성 전체를 파괴할 수 있는 궁극 병기'
+    deathstar: '행성 전체를 파괴할 수 있는 궁극 병기',
+    starAbyssFreighter: '엄청난 화물 적재량을 지닌 거대 수송선'
   },
   defenses: {
     rocketLauncher: '로켓 발사대',
@@ -344,7 +346,8 @@ export default {
     darkMatterSpecialist: '암흑 물질 전문가',
     resourceBonus: '자원 생산 보너스',
     darkMatterBonus: '암흑 물질 생산 보너스',
-    energyBonus: '에너지 생산 보너스'
+    energyBonus: '에너지 생산 보너스',
+    sovereign: 'Emperor',
   },
   officerDescriptions: {
     commander: '건설 속도 및 관리 능력 향상',
@@ -352,7 +355,8 @@ export default {
     engineer: '에너지 및 방어력 향상',
     geologist: '자원 생산량 향상',
     technocrat: '연구 속도 및 정찰 능력 향상',
-    darkMatterSpecialist: '암흑 물질 수집 효율 향상'
+    darkMatterSpecialist: '암흑 물질 수집 효율 향상',
+    sovereign: 'Emperor: an all-round special officer; bonuses apply only on the player side',
   },
   queue: {
     title: '진행 중인 작업',
@@ -652,7 +656,10 @@ export default {
     dismissMessage: '{name}을(를) 해고하시겠습니까? 비용은 환불되지 않습니다.',
     hireFailed: '고용 실패',
     renewFailed: '갱신 실패',
-    insufficientResources: '자원 부족!'
+    insufficientResources: '자원 부족!',
+    energyBonus: 'Energy Output',
+    fleetAttack: 'Fleet Attack',
+    fleetDefense: 'Fleet Defense',
   },
   galaxyView: {
     title: '은하계',

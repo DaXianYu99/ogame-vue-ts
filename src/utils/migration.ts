@@ -615,6 +615,20 @@ export const migrateGameData = (): void => {
       })
     }
 
+    // [emperor-officer] 为旧存档补齐帝王槽位
+    // migrateGameData() 在 Pinia store 初始化之前执行，直接读写 localStorage 中的加密存档。
+    // 不补齐的话 OfficersView / GMView 遍历 Object.values(OfficerType) 会取到 undefined.active 而崩溃。
+    if (oldData.player) {
+      const p = oldData.player as unknown as { officers?: Record<string, unknown> }
+      const hadSlots = !!p.officers
+      const slots: Record<string, unknown> = p.officers || (p.officers = {})
+      if (!hadSlots) needsSave = true
+      if (!slots['sovereign']) {
+        slots['sovereign'] = { type: 'sovereign', active: false }
+        needsSave = true
+      }
+    }
+
     // 初始化玩家积分（如果不存在）
     if (oldData.player && oldData.player.points === undefined) {
       // 积分会在游戏启动时通过 initGame 计算，这里设置为0

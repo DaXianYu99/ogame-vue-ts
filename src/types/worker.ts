@@ -26,6 +26,8 @@ export interface BattleSideData {
   weaponTech?: number
   shieldTech?: number
   armorTech?: number
+  attackBonus?: number // 军官攻击加成 (%)
+  defenseBonus?: number // 军官防御加成 (%)
 }
 
 /**

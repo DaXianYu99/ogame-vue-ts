@@ -73,6 +73,7 @@ export const calculateActiveBonuses = (officers: Record<OfficerType, Officer>, n
   Object.values(officers).forEach(officer => {
     if (isOfficerActive(officer, now)) {
       const config = OFFICERS[officer.type]
+      if (!config) return // 未知军官类型（例如存档修改器写入的自定义 type）直接跳过，避免 TypeError
       Object.entries(config.benefits).forEach(([key, value]) => {
         if (value !== undefined) {
           bonuses[key as keyof typeof bonuses] += value

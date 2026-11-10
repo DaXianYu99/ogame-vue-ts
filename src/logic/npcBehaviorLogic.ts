@@ -232,60 +232,61 @@ export interface DynamicBehaviorConfig {
  * 积分越高，NPC越激进
  */
 export const calculateDynamicBehavior = (playerPoints: number): DynamicBehaviorConfig => {
+  // [war] 强化对玩家进攻节奏：缩短侦查/攻击间隔、提高概率与并发上限
   if (playerPoints < 1000) {
     // 新手阶段：NPC温和但会主动侦查攻击
     return {
-      spyInterval: 300, // 5分钟侦查一次
-      attackInterval: 300, // 5分钟攻击一次（与侦查同步，侦查完就攻击）
-      attackProbability: 0.4,
+      spyInterval: 240, // 4分钟侦查一次
+      attackInterval: 240, // 4分钟攻击一次（与侦查同步，侦查完就攻击）
+      attackProbability: 0.5,
       minSpyProbes: 1,
-      attackFleetSizeRatio: 0.3, // 只派30%舰队
-      maxConcurrentSpyMissions: 3,
-      maxConcurrentAttackMissions: 2
+      attackFleetSizeRatio: 0.4, // 派40%舰队
+      maxConcurrentSpyMissions: 4,
+      maxConcurrentAttackMissions: 3
     }
   } else if (playerPoints < 5000) {
     // 初级阶段：NPC比较激进
     return {
-      spyInterval: 420, // 7分钟侦查一次
-      attackInterval: 420, // 7分钟攻击一次（与侦查同步）
-      attackProbability: 0.45,
+      spyInterval: 300, // 5分钟侦查一次
+      attackInterval: 300, // 5分钟攻击一次（与侦查同步）
+      attackProbability: 0.55,
       minSpyProbes: 2,
-      attackFleetSizeRatio: 0.5, // 派50%舰队
-      maxConcurrentSpyMissions: 5,
-      maxConcurrentAttackMissions: 3
+      attackFleetSizeRatio: 0.55, // 派55%舰队
+      maxConcurrentSpyMissions: 6,
+      maxConcurrentAttackMissions: 4
     }
   } else if (playerPoints < 20000) {
     // 中级阶段：NPC很激进
     return {
-      spyInterval: 360, // 6分钟侦查一次
-      attackInterval: 360, // 6分钟攻击一次（与侦查同步）
-      attackProbability: 0.55,
+      spyInterval: 240, // 4分钟侦查一次
+      attackInterval: 240, // 4分钟攻击一次（与侦查同步）
+      attackProbability: 0.65,
       minSpyProbes: 3,
-      attackFleetSizeRatio: 0.7, // 派70%舰队
-      maxConcurrentSpyMissions: 8,
-      maxConcurrentAttackMissions: 5
+      attackFleetSizeRatio: 0.75, // 派75%舰队
+      maxConcurrentSpyMissions: 9,
+      maxConcurrentAttackMissions: 6
     }
   } else if (playerPoints < 50000) {
     // 高级阶段：NPC非常激进
     return {
-      spyInterval: 300, // 5分钟侦查一次
-      attackInterval: 300, // 5分钟攻击一次（与侦查同步）
-      attackProbability: 0.65,
+      spyInterval: 180, // 3分钟侦查一次
+      attackInterval: 180, // 3分钟攻击一次（与侦查同步）
+      attackProbability: 0.75,
       minSpyProbes: 4,
-      attackFleetSizeRatio: 0.85, // 派85%舰队
-      maxConcurrentSpyMissions: 10,
-      maxConcurrentAttackMissions: 8
+      attackFleetSizeRatio: 0.9, // 派90%舰队
+      maxConcurrentSpyMissions: 12,
+      maxConcurrentAttackMissions: 9
     }
   } else {
     // 专家阶段：NPC极度激进
     return {
-      spyInterval: 240, // 4分钟侦查一次
-      attackInterval: 240, // 4分钟攻击一次（与侦查同步）
-      attackProbability: 0.8,
+      spyInterval: 150, // 2.5分钟侦查一次
+      attackInterval: 150, // 2.5分钟攻击一次（与侦查同步）
+      attackProbability: 0.9,
       minSpyProbes: 5,
-      attackFleetSizeRatio: 0.95, // 派95%舰队
-      maxConcurrentSpyMissions: 15,
-      maxConcurrentAttackMissions: 12
+      attackFleetSizeRatio: 1.0, // 全力以赴
+      maxConcurrentSpyMissions: 18,
+      maxConcurrentAttackMissions: 14
     }
   }
 }
@@ -761,7 +762,8 @@ const calculateNPCCombatPower = (npcPlanet: Planet): number => {
     [ShipType.Bomber]: 700,
     [ShipType.Destroyer]: 2500,
     [ShipType.Battlecruiser]: 1000,
-    [ShipType.Deathstar]: 200000
+    [ShipType.Deathstar]: 200000,
+    [ShipType.StarAbyssFreighter]: 0
   }
 
   let totalPower = 0
@@ -1750,8 +1752,8 @@ export const shouldNPCRevenge = (npc: NPC, currentTime: number): boolean => {
     return false
   }
 
-  // 至少等待一段时间后再反击（防守型反应更快）
-  const minWaitTime = aiModifier.defenseFocus ? 300 * 1000 : 600 * 1000 // 防守型5分钟，其他10分钟
+  // 至少等待一段时间后再反击（防守型反应更快）[war] 缩短等待以强化进攻节奏
+  const minWaitTime = aiModifier.defenseFocus ? 60 * 1000 : 180 * 1000 // 防守型1分钟，其他3分钟
   if (timeSinceLastAttack < minWaitTime) {
     return false
   }
@@ -3867,4 +3869,292 @@ export const updateNPCAllianceSystem = (npcs: NPC[], currentTime: number): void 
 
   // 执行NPC之间的资源共享
   executeNPCResourceSharing(npcs, currentTime)
+}
+
+// ========== NPC 间真实战争系统（游戏发展时间≥3小时后激活）==========
+
+let interNPCWarInitialized = false
+let lastInterNPCWarTick = 0
+const INTER_NPC_WAR_TICK_INTERVAL = 60 // 战争决策间隔（秒）
+const INTER_NPC_ATTACK_COOLDOWN = 600 // 单个NPC对敌攻击冷却（秒）
+const INTER_NPC_WAR_MEMORY_WINDOW = 3600 * 1000 // 被攻击记忆窗口（毫秒，1小时）
+
+/** 游戏发展时间达到该秒数后，NPC 间战争全面激活（默认 3 小时） */
+export const WAR_ACTIVATION_SECONDS = 3 * 3600
+
+/**
+ * 找到 owner 距离给定位置最近的星球（用于选择被攻击/协防目标）
+ */
+const nearestPlanetOf = (owner: NPC, position: { galaxy: number; system: number; position: number }): Planet | null => {
+  let best: Planet | null = null
+  let bestDist = Infinity
+  for (const p of owner.planets) {
+    const d = fleetLogic.calculateDistance(p.position, position)
+    if (d < bestDist) {
+      bestDist = d
+      best = p
+    }
+  }
+  return best
+}
+
+/**
+ * 创建一次 NPC→NPC 攻击任务（从 attacker 向 defenderNpc 的某个星球派出部分舰队）
+ */
+const createInterNPCAttackMission = (
+  attacker: NPC,
+  defenderNpc: NPC,
+  fleetRatio: number,
+  tag: string
+): FleetMission | null => {
+  // 选择防御方最接近攻击方的星球作为目标
+  const attackerMain = attacker.planets[0]
+  if (!attackerMain) return null
+  const targetPlanet = nearestPlanetOf(defenderNpc, attackerMain.position)
+  if (!targetPlanet) return null
+
+  // 选择攻击方最靠近目标的星球作为出发地
+  const launchPlanet = selectBestNPCPlanet(attacker, targetPlanet.position)
+  if (!launchPlanet) return null
+
+  const combatShips = [
+    ShipType.LightFighter,
+    ShipType.HeavyFighter,
+    ShipType.Cruiser,
+    ShipType.Battleship,
+    ShipType.Bomber,
+    ShipType.Destroyer,
+    ShipType.Battlecruiser,
+    ShipType.Deathstar
+  ]
+
+  const fleet: Partial<Fleet> = {}
+  let hasShips = false
+  for (const shipType of combatShips) {
+    const available = launchPlanet.fleet[shipType] || 0
+    if (available > 0) {
+      const sendCount = Math.max(1, Math.floor(available * fleetRatio))
+      fleet[shipType] = sendCount
+      hasShips = true
+    }
+  }
+  if (!hasShips) return null
+
+  // 从出发星球扣除舰队
+  for (const [shipType, count] of Object.entries(fleet)) {
+    launchPlanet.fleet[shipType as ShipType] = (launchPlanet.fleet[shipType as ShipType] || 0) - (count as number)
+  }
+
+  const distance = fleetLogic.calculateDistance(launchPlanet.position, targetPlanet.position)
+  const minSpeed = getFleetMinSpeed(fleet)
+  const flightTime = fleetLogic.calculateFlightTime(distance, minSpeed)
+  const now = Date.now()
+
+  const mission: FleetMission = {
+    id: `${tag}-${attacker.id}-${now}`,
+    playerId: attacker.id,
+    npcId: attacker.id,
+    isHostile: true,
+    originPlanetId: launchPlanet.id,
+    targetPosition: targetPlanet.position,
+    targetPlanetId: targetPlanet.id,
+    missionType: MissionType.Attack,
+    fleet,
+    cargo: { metal: 0, crystal: 0, deuterium: 0, darkMatter: 0, energy: 0 },
+    departureTime: now,
+    arrivalTime: now + flightTime * 1000,
+    status: 'outbound'
+  }
+
+  if (!attacker.fleetMissions) attacker.fleetMissions = []
+  attacker.fleetMissions.push(mission)
+  return mission
+}
+
+/**
+ * 连坐效应（NPC↔NPC）：当 attacker 攻击 victim 时，victim 的盟友对 attacker 产生敌意
+ */
+const propagateGuiltNPC = (attacker: NPC, victim: NPC, npcs: NPC[], depth: number): void => {
+  const cfg = DIPLOMATIC_CONFIG.NPC_ALLIANCE_CONFIG.GUILT_BY_ASSOCIATION
+  if (!cfg.ENABLED) return
+  if (depth >= cfg.MAX_PROPAGATION_DEPTH) return
+
+  const allies = victim.allies || []
+  for (const allyId of allies) {
+    const ally = npcs.find(n => n.id === allyId)
+    if (!ally) continue
+    if (!ally.enemies) ally.enemies = []
+    if (!ally.enemies.includes(attacker.id)) ally.enemies.push(attacker.id)
+    propagateGuiltNPC(attacker, ally, npcs, depth + 1)
+  }
+}
+
+/**
+ * 敌对攻击：NPC 向某个敌人星球发动攻击
+ */
+const maybeAttackEnemy = (npc: NPC, npcs: NPC[], now: number): void => {
+  const enemies = npc.enemies || []
+  if (enemies.length === 0) return
+
+  const last = (npc as unknown as { lastInterNPCAttackTime?: number }).lastInterNPCAttackTime || 0
+  if (now - last < INTER_NPC_ATTACK_COOLDOWN * 1000) return
+  if (Math.random() > 0.4) return
+
+  const livingEnemies = enemies
+    .map(id => npcs.find(n => n.id === id))
+    .filter((n): n is NPC => !!n && n.planets.length > 0)
+  if (livingEnemies.length === 0) return
+
+  const targetArr = livingEnemies
+  const target = targetArr[Math.floor(Math.random() * targetArr.length)]
+  if (!target) return
+  const ratio = 0.3 + Math.random() * 0.2 // 派出 30%~50% 舰队
+  const mission = createInterNPCAttackMission(npc, target, ratio, 'npc-war')
+  if (mission) {
+    ;(npc as unknown as { lastInterNPCAttackTime?: number }).lastInterNPCAttackTime = now
+    const targetAny = target as unknown as { interNPCAttackedBy?: Record<string, { planetId: string; time: number }> }
+    if (!targetAny.interNPCAttackedBy) targetAny.interNPCAttackedBy = {}
+    targetAny.interNPCAttackedBy[npc.id] = { planetId: mission.targetPlanetId!, time: now }
+    // 连坐：被害方盟友对攻击方翻脸
+    propagateGuiltNPC(npc, target, npcs, 0)
+  }
+}
+
+/**
+ * 复仇：被攻击后，NPC 向攻击者发起更猛烈的报复
+ */
+const maybeRevenge = (npc: NPC, npcs: NPC[], now: number): void => {
+  const attackedBy = (npc as unknown as { interNPCAttackedBy?: Record<string, { planetId: string; time: number }> }).interNPCAttackedBy
+  if (!attackedBy) return
+
+  const recent = Object.entries(attackedBy).filter(([, v]) => now - v.time < INTER_NPC_WAR_MEMORY_WINDOW)
+  if (recent.length === 0) return
+
+  const last = (npc as unknown as { lastInterNPCRevengeTime?: number }).lastInterNPCRevengeTime || 0
+  if (now - last < INTER_NPC_ATTACK_COOLDOWN * 1000) return
+  if (Math.random() > 0.6) return
+
+  const recentEntry = recent[Math.floor(Math.random() * recent.length)]
+  if (!recentEntry) return
+  const [attackerId] = recentEntry
+  const attacker = npcs.find(n => n.id === attackerId)
+  if (!attacker || attacker.planets.length === 0) return
+
+  const ratio = 0.4 + Math.random() * 0.3 // 复仇更猛：40%~70%
+  const mission = createInterNPCAttackMission(npc, attacker, ratio, 'npc-revenge')
+  if (mission) {
+    ;(npc as unknown as { lastInterNPCRevengeTime?: number }).lastInterNPCRevengeTime = now
+    if (!npc.enemies) npc.enemies = []
+    if (!npc.enemies.includes(attacker.id)) npc.enemies.push(attacker.id)
+  }
+}
+
+/**
+ * 盟友协防：当盟友近期被攻击，NPC 出兵替盟友报复攻击者
+ */
+const maybeMutualDefense = (npc: NPC, npcs: NPC[], now: number): void => {
+  const allies = npc.allies || []
+  if (allies.length === 0) return
+
+  const defenseCfg = DIPLOMATIC_CONFIG.NPC_ALLIANCE_CONFIG.MUTUAL_DEFENSE
+  const last = (npc as unknown as { lastMutualDefenseTime?: number }).lastMutualDefenseTime || 0
+  if (now - last < defenseCfg.COOLDOWN * 1000) return
+  if (Math.random() > defenseCfg.RESPONSE_PROBABILITY) return
+
+  for (const allyId of allies) {
+    const ally = npcs.find(n => n.id === allyId)
+    if (!ally) continue
+    const ab = (ally as unknown as { interNPCAttackedBy?: Record<string, { planetId: string; time: number }> }).interNPCAttackedBy
+    if (!ab) continue
+    const recent = Object.entries(ab).filter(([, v]) => now - v.time < INTER_NPC_WAR_MEMORY_WINDOW)
+    if (recent.length === 0) continue
+
+    const recentEntry = recent[0]
+    if (!recentEntry) continue
+    const [attackerId] = recentEntry
+    const attacker = npcs.find(n => n.id === attackerId)
+    if (!attacker || attacker.planets.length === 0) continue
+
+    const ratio = defenseCfg.FLEET_RATIO.min + Math.random() * (defenseCfg.FLEET_RATIO.max - defenseCfg.FLEET_RATIO.min)
+    const mission = createInterNPCAttackMission(npc, attacker, ratio, 'npc-mutual-defense')
+    if (mission) {
+      ;(npc as unknown as { lastMutualDefenseTime?: number }).lastMutualDefenseTime = now
+    }
+    break
+  }
+}
+
+/**
+ * 背刺：偶发地让某个 NPC 背叛其盟友（盟友↔敌人翻转）
+ */
+const maybeBackstab = (npcs: NPC[]): void => {
+  if (Math.random() > 0.05) return // 每次战争 tick 约 5% 概率发生一次背刺
+
+  const candidates = npcs.filter(n => (n.allies?.length || 0) > 0 && n.planets.length > 0)
+  if (candidates.length === 0) return
+
+  const npc = candidates[Math.floor(Math.random() * candidates.length)]
+  if (!npc) return
+  const allyId = npc.allies![Math.floor(Math.random() * npc.allies!.length)]
+  if (!allyId) return
+
+  npc.allies = npc.allies!.filter(id => id !== allyId)
+  if (!npc.enemies) npc.enemies = []
+  if (!npc.enemies.includes(allyId)) npc.enemies.push(allyId)
+
+  const ally = npcs.find(n => n.id === allyId)
+  if (ally) {
+    if (ally.allies) ally.allies = ally.allies.filter(id => id !== npc.id)
+    if (!ally.enemies) ally.enemies = []
+    if (!ally.enemies.includes(npc.id)) ally.enemies.push(npc.id)
+  }
+}
+
+/**
+ * 驱动 NPC 间真实战争（在主循环中每帧调用，内部自带节流与 3 小时前置闸门）
+ * @returns activated 表示战争系统当前是否处于激活状态（用于触发一次性提示）
+ */
+export const runInterNPCWar = (
+  npcs: NPC[],
+  currentTime: number,
+  gameElapsedSeconds: number
+): { activated: boolean } => {
+  const { NPC_ALLIANCE_CONFIG } = DIPLOMATIC_CONFIG
+  if (!NPC_ALLIANCE_CONFIG.ENABLED) return { activated: false }
+  if (gameElapsedSeconds < WAR_ACTIVATION_SECONDS) return { activated: false }
+
+  // 首次激活：初始化 NPC 间关系（联盟/敌对）
+  if (!interNPCWarInitialized) {
+    initializeInterNPCRelations(npcs)
+    interNPCWarInitialized = true
+  }
+
+  // 周期性战争决策（避免每帧都触发）
+  if (currentTime - lastInterNPCWarTick < INTER_NPC_WAR_TICK_INTERVAL * 1000) {
+    return { activated: true }
+  }
+  lastInterNPCWarTick = currentTime
+
+  // 1. 盟友间资源共享
+  executeNPCResourceSharing(npcs, currentTime)
+
+  // 2. 背刺：联盟内部偶发背叛
+  maybeBackstab(npcs)
+
+  // 3. 敌对攻击 + 复仇 + 盟友协防
+  for (const npc of npcs) {
+    maybeAttackEnemy(npc, npcs, currentTime)
+    maybeRevenge(npc, npcs, currentTime)
+    maybeMutualDefense(npc, npcs, currentTime)
+  }
+
+  return { activated: true }
+}
+
+/**
+ * 重置 NPC 间战争状态（新游戏时调用，可选）
+ */
+export const resetInterNPCWar = (): void => {
+  interNPCWarInitialized = false
+  lastInterNPCWarTick = 0
 }

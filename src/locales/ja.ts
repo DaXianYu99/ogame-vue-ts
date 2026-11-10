@@ -235,7 +235,8 @@ export default {
     espionageProbe: 'スパイプローブ',
     solarSatellite: '太陽光衛星',
     darkMatterHarvester: 'ダークマター採取船',
-    deathstar: 'デススター'
+    deathstar: 'デススター',
+    starAbyssFreighter: '星淵貨物船'
   },
   shipDescriptions: {
     lightFighter: '基本戦闘ユニット',
@@ -252,7 +253,8 @@ export default {
     espionageProbe: '敵惑星を偵察',
     solarSatellite: '追加エネルギーを提供、惑星温度により産出量変動（高温ほど高産出）',
     darkMatterHarvester: 'ダークマター採取専用の特殊艦',
-    deathstar: '惑星全体を破壊できる究極兵器'
+    deathstar: '惑星全体を破壊できる究極兵器',
+    starAbyssFreighter: '膨大な積載量を持つ超巨大輸送船'
   },
   defenses: {
     rocketLauncher: 'ロケットランチャー',
@@ -367,7 +369,8 @@ export default {
     darkMatterSpecialist: 'ダークマター専門家',
     resourceBonus: '資源生産ボーナス',
     darkMatterBonus: 'ダークマター生産ボーナス',
-    energyBonus: 'エネルギー生産ボーナス'
+    energyBonus: 'エネルギー生産ボーナス',
+    sovereign: 'Emperor',
   },
   officerDescriptions: {
     commander: '建設速度と管理能力を向上',
@@ -375,7 +378,8 @@ export default {
     engineer: 'エネルギーと防御力を向上',
     geologist: '資源生産量を向上',
     technocrat: '研究速度と偵察能力を向上',
-    darkMatterSpecialist: 'ダークマター採取効率を向上'
+    darkMatterSpecialist: 'ダークマター採取効率を向上',
+    sovereign: 'Emperor: an all-round special officer; bonuses apply only on the player side',
   },
   queue: {
     title: '進行中のタスク',
@@ -691,7 +695,10 @@ export default {
     dismissMessage: '{name}を解雇しますか？費用は返金されません。',
     hireFailed: '雇用失敗',
     renewFailed: '更新失敗',
-    insufficientResources: '資源不足！'
+    insufficientResources: '資源不足！',
+    energyBonus: 'Energy Output',
+    fleetAttack: 'Fleet Attack',
+    fleetDefense: 'Fleet Defense',
   },
   galaxyView: {
     title: '銀河',

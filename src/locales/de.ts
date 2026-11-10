@@ -224,7 +224,8 @@ export default {
     espionageProbe: 'Spionagesonde',
     solarSatellite: 'Solarsatellit',
     darkMatterHarvester: 'Dunkle-Materie-Ernter',
-    deathstar: 'Todesstern'
+    deathstar: 'Todesstern',
+    starAbyssFreighter: 'Sternenabgrund-Frachter'
   },
   shipDescriptions: {
     lightFighter: 'Grundlegende Kampfeinheit',
@@ -241,7 +242,8 @@ export default {
     espionageProbe: 'Späht feindliche Planeten aus',
     solarSatellite: 'Liefert zusätzliche Energie, Leistung abhängig von Planetentemperatur (höher bei Hitze)',
     darkMatterHarvester: 'Spezielles Schiff zum Ernten von Dunkler Materie',
-    deathstar: 'Ultimative Waffe, die ganze Planeten zerstören kann'
+    deathstar: 'Ultimative Waffe, die ganze Planeten zerstören kann',
+    starAbyssFreighter: 'Ein kolossaler Transporter mit gewaltiger Ladekapazität'
   },
   defenses: {
     rocketLauncher: 'Raketenwerfer',
@@ -355,7 +357,8 @@ export default {
     darkMatterSpecialist: 'Dunkle-Materie-Spezialist',
     resourceBonus: 'Ressourcenproduktionsbonus',
     darkMatterBonus: 'Dunkle-Materie-Produktionsbonus',
-    energyBonus: 'Energieproduktionsbonus'
+    energyBonus: 'Energieproduktionsbonus',
+    sovereign: 'Emperor',
   },
   officerDescriptions: {
     commander: 'Verbessert Baugeschwindigkeit und Management',
@@ -363,7 +366,8 @@ export default {
     engineer: 'Verbessert Energie und Verteidigung',
     geologist: 'Verbessert Ressourcenproduktion',
     technocrat: 'Verbessert Forschungsgeschwindigkeit und Spionage',
-    darkMatterSpecialist: 'Verbessert Dunkle-Materie-Sammlungseffizienz'
+    darkMatterSpecialist: 'Verbessert Dunkle-Materie-Sammlungseffizienz',
+    sovereign: 'Emperor: an all-round special officer; bonuses apply only on the player side',
   },
   queue: {
     title: 'Aktive Aufgaben',
@@ -669,7 +673,10 @@ export default {
     dismissMessage: 'Möchten Sie wirklich {name} entlassen? Es werden keine Kosten zurückerstattet.',
     hireFailed: 'Rekrutierung fehlgeschlagen',
     renewFailed: 'Verlängerung fehlgeschlagen',
-    insufficientResources: 'Nicht genug Ressourcen!'
+    insufficientResources: 'Nicht genug Ressourcen!',
+    energyBonus: 'Energy Output',
+    fleetAttack: 'Fleet Attack',
+    fleetDefense: 'Fleet Defense',
   },
   galaxyView: {
     title: 'Galaxie',

@@ -1,8 +1,9 @@
-import type { NPC, Planet, Player } from '@/types/game'
+import type { NPC, Planet, Player, Fleet } from '@/types/game'
 import { TechnologyType, BuildingType, ShipType, DefenseType, NPCAIType } from '@/types/game'
-import { BUILDINGS, SHIPS, TECHNOLOGIES } from '@/config/gameConfig'
+import { BUILDINGS, SHIPS, TECHNOLOGIES, DEFENSES, NPC_EXPANSION_CONFIG } from '@/config/gameConfig'
 import * as buildingLogic from './buildingLogic'
 import * as researchLogic from './researchLogic'
+import * as fleetStorageLogic from './fleetStorageLogic'
 
 /**
  * NPC成长系统
@@ -911,7 +912,8 @@ export const initializeNPCByDistance = (npc: NPC, homeworldPosition: { galaxy: n
     [ShipType.EspionageProbe]: 2,
     [ShipType.SolarSatellite]: 1,
     [ShipType.DarkMatterHarvester]: 50,
-    [ShipType.Deathstar]: 100
+    [ShipType.Deathstar]: 100,
+    [ShipType.StarAbyssFreighter]: 100
   }
 
   // 根据 effectiveLevel 计算舰队基数
@@ -1131,4 +1133,448 @@ export const generateNPCResourcesByDistance = (
   planet.resources.crystal = Math.min(planet.resources.crystal, 10000 * Math.pow(2, crystalStorage))
   planet.resources.deuterium = Math.min(planet.resources.deuterium, 10000 * Math.pow(2, deuteriumStorage))
   planet.resources.darkMatter = Math.min(planet.resources.darkMatter, 1000 * Math.pow(2, darkMatterStorage))
+}
+
+
+/* ========================================================================== */
+/* [npc-expansion] 扩展成长系统（保留上游原函数，本段为新增）                  */
+/* - 资源：遍历 NPC 的所有非月球行星，而不是只处理 planets[0]                  */
+/* - 建筑 / 科技：每次检查各推进 growthSteps 次                                */
+/* - 舰队：滚动目标（当前战力 × 1+增长率），每次造多批且优先高级舰种，        */
+/*         使舰队数量持续增长、舰种结构逐步升级                                */
+/* ========================================================================== */
+
+export interface NPCGrowthReport {
+  shouldColonize: boolean
+  planets: number
+  moons: number
+}
+
+const BUILDING_VALUE_KEYS = new Set<string>(Object.values(BuildingType) as unknown as string[])
+const TECHNOLOGY_VALUE_KEYS = new Set<string>(Object.values(TechnologyType) as unknown as string[])
+
+/** 舰种梯度：从高级到低级。造舰时按顺序取已解锁且资源够的前几种 */
+const FLEET_TIERS: ShipType[] = [
+  ShipType.ColonyShip, // [npc-expansion] 殖民船优先级最高：殖民前先造够，总数到上限即停
+  ShipType.Deathstar,
+  ShipType.Destroyer,
+  ShipType.Bomber,
+  ShipType.Battlecruiser,
+  ShipType.Battleship,
+  ShipType.Cruiser,
+  ShipType.HeavyFighter,
+  ShipType.LightFighter,
+  ShipType.Recycler,
+  ShipType.LargeCargo,
+  ShipType.SmallCargo,
+  ShipType.EspionageProbe,
+  ShipType.SolarSatellite
+]
+
+/** 防御设施梯度：运营新殖民地时按预算补充 */
+const DEFENSE_ORDER: DefenseType[] = [
+  DefenseType.RocketLauncher,
+  DefenseType.LightLaser,
+  DefenseType.HeavyLaser,
+  DefenseType.GaussCannon,
+  DefenseType.IonCannon,
+  DefenseType.PlasmaTurret,
+  DefenseType.SmallShieldDome,
+  DefenseType.LargeShieldDome,
+  // [npc-expansion] 原版只在初始化给一份，现纳入运营期补充（解锁条件较苛刻）
+  DefenseType.AntiBallisticMissile,
+  DefenseType.InterplanetaryMissile,
+  DefenseType.PlanetaryShield
+]
+
+const shipCombatPower = (type: ShipType): number => {
+  const s = SHIPS[type]
+  return s.attack + s.shield + s.armor / 10
+}
+
+/**
+ * 检查舰种是否解锁。
+ * 注意：上游 autoBuildNPCFleet 用 reqType in BuildingType 判断，但 requirements
+ * 的键是枚举【值】（如 'shipyard'），而 BuildingType 的键是【名】（'Shipyard'），
+ * 因此那处判断恒为 false。这里改用枚举值集合正确判断。
+ */
+const isShipUnlocked = (type: ShipType, npc: NPC, planet: Planet): boolean => {
+  const req = (SHIPS[type].requirements || {}) as Record<string, number>
+  return Object.entries(req).every(([key, level]) => {
+    if (BUILDING_VALUE_KEYS.has(key)) {
+      return ((planet.buildings as unknown as Record<string, number>)[key] || 0) >= level
+    }
+    if (TECHNOLOGY_VALUE_KEYS.has(key)) {
+      return ((npc.technologies as unknown as Record<string, number>)[key] || 0) >= level
+    }
+    return true
+  })
+}
+
+/**
+ * [npc-expansion] 防御设施解锁检查（与 isShipUnlocked 同一套枚举值判断）。
+ * 修正上一版「只看资源、不看 requirements」的问题：
+ * 火箭需船坞1，轻激光需船坞2+激光3，等离子需船坞8+等离子7，依此类推。
+ */
+const isDefenseUnlocked = (type: DefenseType, npc: NPC, planet: Planet): boolean => {
+  const req = (DEFENSES[type].requirements || {}) as Record<string, number>
+  return Object.entries(req).every(([key, level]) => {
+    if (BUILDING_VALUE_KEYS.has(key)) {
+      return ((planet.buildings as unknown as Record<string, number>)[key] || 0) >= level
+    }
+    if (TECHNOLOGY_VALUE_KEYS.has(key)) {
+      return ((npc.technologies as unknown as Record<string, number>)[key] || 0) >= level
+    }
+    return true
+  })
+}
+
+/** 单个行星的资源结算（与 generateNPCResourcesByDistance 相同公式） */
+const generateResourcesOn = (planet: Planet, rate: number, delta: number): void => {
+  const b = planet.buildings as unknown as Record<string, number>
+  const mm = b[BuildingType.MetalMine] || 0
+  const cm = b[BuildingType.CrystalMine] || 0
+  const dm = b[BuildingType.DeuteriumSynthesizer] || 0
+  const dkm = b[BuildingType.DarkMatterCollector] || 0
+  planet.resources.metal = Math.min(
+    planet.resources.metal + 90 * mm * Math.pow(1.1, mm) * rate * delta,
+    10000 * Math.pow(2, b[BuildingType.MetalStorage] || 0)
+  )
+  planet.resources.crystal = Math.min(
+    planet.resources.crystal + 60 * cm * Math.pow(1.1, cm) * rate * delta,
+    10000 * Math.pow(2, b[BuildingType.CrystalStorage] || 0)
+  )
+  planet.resources.deuterium = Math.min(
+    planet.resources.deuterium + 30 * dm * Math.pow(1.1, dm) * rate * delta,
+    10000 * Math.pow(2, b[BuildingType.DeuteriumTank] || 0)
+  )
+  planet.resources.darkMatter = Math.min(
+    planet.resources.darkMatter + ((75 * dkm * Math.pow(1.5, dkm)) / 3600) * rate * delta,
+    1000 * Math.pow(2, b[BuildingType.DarkMatterTank] || 0)
+  )
+}
+
+/** 单个行星升 1 级建筑 */
+const upgradeBuildingsOn = (planet: Planet): void => {
+  // [npc-expansion] 轮换升级：把决定舰队仓储的「船坞 / 机库」放到队列前部，并用轮转游标
+  // 保证每颗星球的所有建筑都能持续升级，避免原实现只升队首矿场导致船坞 / 机库被饿死。
+  const order: BuildingType[] = [
+    BuildingType.Shipyard,
+    BuildingType.Hangar,
+    BuildingType.MetalMine,
+    BuildingType.CrystalMine,
+    BuildingType.DeuteriumSynthesizer,
+    BuildingType.SolarPlant,
+    BuildingType.RoboticsFactory,
+    BuildingType.ResearchLab,
+    BuildingType.MetalStorage,
+    BuildingType.CrystalStorage,
+    BuildingType.DeuteriumTank,
+    BuildingType.DarkMatterCollector
+  ]
+  const b = planet.buildings as unknown as Record<string, number>
+  const p = planet as unknown as { _bUpgCursor?: number }
+  const start = (p._bUpgCursor || 0) % order.length
+  for (let i = 0; i < order.length; i++) {
+    const type = order[(start + i) % order.length] as BuildingType
+    const current = b[type] || 0
+    const next = current + 1
+    const cfg = BUILDINGS[type]
+    if (cfg.maxLevel && current >= cfg.maxLevel) continue
+    const cost = buildingLogic.calculateBuildingCost(type, next)
+    if (
+      planet.resources.metal >= cost.metal &&
+      planet.resources.crystal >= cost.crystal &&
+      planet.resources.deuterium >= cost.deuterium &&
+      planet.resources.darkMatter >= cost.darkMatter
+    ) {
+      planet.resources.metal -= cost.metal
+      planet.resources.crystal -= cost.crystal
+      planet.resources.deuterium -= cost.deuterium
+      planet.resources.darkMatter -= cost.darkMatter
+      b[type] = next
+      p._bUpgCursor = (start + i + 1) % order.length
+      break
+    }
+  }
+}
+
+/** NPC 研究 1 级科技（科技是 NPC 级，资源从主星扣） */
+const researchTechFor = (npc: NPC, planet: Planet): void => {
+  const order: TechnologyType[] = [
+    TechnologyType.EnergyTechnology,
+    TechnologyType.ComputerTechnology,
+    TechnologyType.WeaponsTechnology,
+    TechnologyType.ShieldingTechnology,
+    TechnologyType.ArmourTechnology,
+    TechnologyType.CombustionDrive,
+    TechnologyType.ImpulseDrive,
+    TechnologyType.HyperspaceDrive,
+    TechnologyType.LaserTechnology,
+    TechnologyType.IonTechnology,
+    TechnologyType.PlasmaTechnology,
+    TechnologyType.Astrophysics,
+    TechnologyType.EspionageTechnology
+  ]
+  const t = npc.technologies as unknown as Record<string, number>
+  for (const type of order) {
+    const current = t[type] || 0
+    const next = current + 1
+    const cfg = TECHNOLOGIES[type]
+    if (cfg.maxLevel && current >= cfg.maxLevel) continue
+    const cost = researchLogic.calculateTechnologyCost(type, next)
+    if (
+      planet.resources.metal >= cost.metal &&
+      planet.resources.crystal >= cost.crystal &&
+      planet.resources.deuterium >= cost.deuterium &&
+      planet.resources.darkMatter >= cost.darkMatter
+    ) {
+      planet.resources.metal -= cost.metal
+      planet.resources.crystal -= cost.crystal
+      planet.resources.deuterium -= cost.deuterium
+      planet.resources.darkMatter -= cost.darkMatter
+      t[type] = next
+      break
+    }
+  }
+}
+
+/**
+ * 单个行星造舰：滚动目标 + 多批次 + 优先高级舰种。
+ * 上游 targetFleetPower 上限只有 1000×倍率（≤50000），而初始化舰队战力已达
+ * 百万级，导致 autoBuildNPCFleet 永远不触发。这里改为「当前战力 ×(1+增长率)」
+ * 的滚动目标。已移除 maxFleetPower 硬上限：舰队规模仅受舰队仓储（船坞/机库/计算机）
+ * 与资源约束，不再被战力数值封顶。
+ */
+const buildFleetOn = (npc: NPC, planet: Planet, distance: number): void => {
+  const cfg = NPC_EXPANSION_CONFIG
+  const fleet = planet.fleet as unknown as Record<string, number>
+  // [npc-expansion] 与玩家一致：容量由船坞 / 机库 / 计算机技术动态计算，不读死的字段
+  const maxStorage = fleetStorageLogic.calculateMaxFleetStorage(
+    planet,
+    npc.technologies as unknown as Record<TechnologyType, number>
+  )
+  let storageUsage = fleetStorageLogic.calculateFleetStorageUsage(planet.fleet as Fleet)
+  // [npc-expansion] 统计该 NPC 当前殖民船总数，用于「>上限即停止建造」
+  let totalColony = 0
+  for (const pl of npc.planets) {
+    const f = (pl.fleet as unknown as Record<string, number>)
+    totalColony += f[ShipType.ColonyShip] || 0
+  }
+  let power = 0
+  Object.entries(fleet).forEach(([key, count]) => {
+    if (SHIPS[key as ShipType] && typeof count === 'number' && count > 0) {
+      power += shipCombatPower(key as ShipType) * count
+    }
+  })
+
+  const baseline = 1000 * calculateDistanceDifficultyMultiplier(distance).fleetMultiplier
+  const target = Math.max(baseline, power * (1 + cfg.fleetGrowthRate))
+  if (power >= target) return
+
+  let batches = 0
+  for (const type of FLEET_TIERS) {
+    if (batches >= cfg.growthSteps) break
+    if (!isShipUnlocked(type, npc, planet)) continue
+    // [npc-expansion] 殖民船达到上限后停止建造（>2 即停）
+    if (type === ShipType.ColonyShip && totalColony >= (cfg.maxColonyShips ?? 2)) continue
+    const s = SHIPS[type]
+    const affordable = Math.floor(
+      Math.min(
+        s.cost.metal > 0 ? planet.resources.metal / s.cost.metal : Infinity,
+        s.cost.crystal > 0 ? planet.resources.crystal / s.cost.crystal : Infinity,
+        s.cost.deuterium > 0 ? planet.resources.deuterium / s.cost.deuterium : Infinity,
+        s.cost.darkMatter > 0 ? planet.resources.darkMatter / s.cost.darkMatter : Infinity
+      )
+    )
+    if (!Number.isFinite(affordable) || affordable <= 0) continue
+
+    const unit = Math.max(1, shipCombatPower(type))
+    const wanted = Math.max(1, Math.min(cfg.batchCap, Math.ceil(((target - power) * 0.3) / unit)))
+    // 与玩家 getMaxBuildableShips() 一致：本批数量还要受剩余舰队仓储夹紧
+    const spaceLeft = Math.max(0, maxStorage - storageUsage)
+    const storageCap = s.storageUsage > 0 ? Math.floor(spaceLeft / s.storageUsage) : wanted
+    const count = Math.min(affordable, wanted, storageCap)
+    if (count <= 0) continue
+
+    planet.resources.metal -= s.cost.metal * count
+    planet.resources.crystal -= s.cost.crystal * count
+    planet.resources.deuterium -= s.cost.deuterium * count
+    planet.resources.darkMatter -= s.cost.darkMatter * count
+    fleet[type] = (fleet[type] || 0) + count
+    power += unit * count
+    storageUsage += s.storageUsage * count
+    batches++
+  }
+}
+
+/**
+ * [npc-expansion] 运营新殖民地：按 defenseBudgetRatio 的预算补充防御设施。
+ * 只用资源的一小部分，避免挤占造舰与升级；每个行星都参与，不只是主星。
+ */
+const buildDefenseOn = (npc: NPC, planet: Planet): void => {
+  const cfg = NPC_EXPANSION_CONFIG
+  const budget = {
+    metal: planet.resources.metal * cfg.defenseBudgetRatio,
+    crystal: planet.resources.crystal * cfg.defenseBudgetRatio,
+    deuterium: planet.resources.deuterium * cfg.defenseBudgetRatio,
+    darkMatter: planet.resources.darkMatter * cfg.defenseBudgetRatio
+  }
+  const defense = planet.defense as unknown as Record<string, number>
+  // [npc-expansion] 轮转起点：原实现每轮都从队首火箭发射器开始且只造 3 批，
+  // 列表尾部的高级防御永远轮不到。每次调用把起点后移一位，11 种轮流覆盖。
+  const timed = npc as NPC & { defenseRotation?: number }
+  const rotation = (timed.defenseRotation || 0) % DEFENSE_ORDER.length
+  timed.defenseRotation = rotation + 1
+  const order = [...DEFENSE_ORDER.slice(rotation), ...DEFENSE_ORDER.slice(0, rotation)]
+  let built = 0
+  for (const type of order) {
+    if (built >= cfg.growthSteps) break
+    // [npc-expansion] 与舰队一致：不满足船坞/科技要求则跳过，不再无条件建造
+    if (!isDefenseUnlocked(type, npc, planet)) continue
+    const d = DEFENSES[type]
+    const affordable = Math.floor(
+      Math.min(
+        d.cost.metal > 0 ? budget.metal / d.cost.metal : Infinity,
+        d.cost.crystal > 0 ? budget.crystal / d.cost.crystal : Infinity,
+        d.cost.deuterium > 0 ? budget.deuterium / d.cost.deuterium : Infinity,
+        d.cost.darkMatter > 0 ? budget.darkMatter / d.cost.darkMatter : Infinity
+      )
+    )
+    if (!Number.isFinite(affordable) || affordable <= 0) continue
+    const count = Math.min(affordable, Math.max(1, Math.floor(cfg.batchCap / 4)))
+    if (count <= 0) continue
+    planet.resources.metal -= d.cost.metal * count
+    planet.resources.crystal -= d.cost.crystal * count
+    planet.resources.deuterium -= d.cost.deuterium * count
+    planet.resources.darkMatter -= d.cost.darkMatter * count
+    defense[type] = (defense[type] || 0) + count
+    built++
+  }
+}
+
+/**
+ * [npc-expansion] 跨星球资源调配。
+ * 目标与玩家的运输任务一致（把富余转给不足以提高发展效率），但不生成 FleetMission：
+ * 按每种资源的仓储目标水位算富余与缺口，在评估轮直接做一次内部调拨。
+ * 总量守恒，且不会把任何行星推过目标水位。
+ */
+export const redistributeNPCResources = (npc: NPC): void => {
+  const cfg = NPC_EXPANSION_CONFIG
+  const planets = npc.planets.filter(p => !p.isMoon)
+  if (planets.length < 2) return
+
+  const targetOf = (p: Planet, key: string): number => {
+    const b = p.buildings as unknown as Record<string, number>
+    const capacity =
+      key === 'metal'
+        ? 10000 * Math.pow(2, b[BuildingType.MetalStorage] || 0)
+        : key === 'crystal'
+          ? 10000 * Math.pow(2, b[BuildingType.CrystalStorage] || 0)
+          : key === 'deuterium'
+            ? 10000 * Math.pow(2, b[BuildingType.DeuteriumTank] || 0)
+            : 1000 * Math.pow(2, b[BuildingType.DarkMatterTank] || 0)
+    return capacity * cfg.storageTargetRatio
+  }
+
+  for (const key of ['metal', 'crystal', 'deuterium', 'darkMatter']) {
+    const res = planets.map(p => p.resources as unknown as Record<string, number>)
+    const targets = planets.map(p => targetOf(p, key))
+    const surplus: number[] = []
+    const deficit: number[] = []
+    res.forEach((r, i) => {
+      const current = r[key] ?? 0
+      const target = targets[i] ?? 0
+      surplus.push(Math.max(0, current - target) * cfg.redistributeRatio)
+      deficit.push(Math.max(0, target - current))
+    })
+    const totalSurplus = surplus.reduce((a, b) => a + b, 0)
+    const totalDeficit = deficit.reduce((a, b) => a + b, 0)
+    const moved = Math.min(totalSurplus, totalDeficit)
+    if (moved <= 0) continue
+
+    // 按富余比例扣除，再按缺口比例补入；总量守恒且不会越过目标水位
+    res.forEach((r, i) => {
+      const take = (surplus[i] ?? 0) * (moved / totalSurplus)
+      r[key] = (r[key] ?? 0) - take
+    })
+    res.forEach((r, i) => {
+      const need = deficit[i] ?? 0
+      const give = Math.min(need, moved * (need / totalDeficit))
+      r[key] = (r[key] ?? 0) + give
+    })
+  }
+}
+
+/** 月球上限检查：本补丁不主动生成月球，仅供残骸场路径接入时约束数量 */
+export const canNPCAddMoon = (npc: NPC): boolean =>
+  npc.planets.filter(p => p.isMoon).length < NPC_EXPANSION_CONFIG.maxMoonsPerNpc
+
+/**
+ * 扩展版成长入口。App.vue 每 NPC 每 5 秒调用一次：
+ *   - 资源每次都结算
+ *   - 建筑 / 科技 / 舰队按 checkInterval（默认 30 秒）评估
+ *   - 返回是否应新增一个殖民地
+ */
+export const updateNPCGrowthExpanded = (
+  npc: NPC,
+  homeworldPosition: { galaxy: number; system: number; position: number },
+  deltaSeconds: number,
+  gameSpeed: number = 1
+): NPCGrowthReport => {
+  const cfg = NPC_EXPANSION_CONFIG
+  const planets = npc.planets.filter(p => !p.isMoon)
+  const moons = npc.planets.length - planets.length
+  const primary = planets[0]
+  if (!primary) return { shouldColonize: false, planets: 0, moons }
+
+  const distance =
+    npc.distanceToHomeworld ?? calculateDistanceToHomeworld(primary.position, homeworldPosition)
+  const growthCfg = calculateDistanceBasedGrowthConfig(distance)
+  const delta = deltaSeconds * gameSpeed
+  planets.forEach(p => generateResourcesOn(p, growthCfg.resourceGrowthRate, delta))
+
+  const now = Date.now()
+  const timed = npc as NPC & { lastExpandedCheck?: number; lastColonizeCheck?: number }
+  if (now - (timed.lastExpandedCheck || 0) < cfg.checkInterval * 1000) {
+    return { shouldColonize: false, planets: planets.length, moons }
+  }
+  timed.lastExpandedCheck = now
+
+  // [npc-expansion] 先跨星球调拨资源，本轮升级/造舰即可用到调拨后的资源
+  redistributeNPCResources(npc)
+
+  // [npc-expansion] 发展与生存视角的优先级（溢出式，不是预算独占）：
+  // 行星数 <= fleetFirstPlanetThreshold：腹地小 → 星球(建筑/科技) > 舰队 > 防御
+  // 行星数 >  fleetFirstPlanetThreshold：腹地足 → 舰队 > 星球(建筑/科技) > 防御
+  // 「优先」= 优先项先执行，但每轮都有硬上限：星球最多 growthSteps 次升级、
+  // 舰队最多 growthSteps 批且受舰队仓储夹紧。达到上限后剩余资源不做预留，
+  // 自动由次要目标消费；防御始终最后，且只用 defenseBudgetRatio 预算。
+  // 所有步骤共享同一份 planet.resources 并直接扣减，因此「顺序 + 各自上限」即优先级。
+  const fleetFirst = planets.length > cfg.fleetFirstPlanetThreshold
+
+  if (fleetFirst) {
+    planets.forEach(p => buildFleetOn(npc, p, distance))
+  }
+
+  for (let step = 0; step < cfg.growthSteps; step++) {
+    planets.forEach(p => upgradeBuildingsOn(p))
+    researchTechFor(npc, primary)
+  }
+
+  if (!fleetFirst) {
+    planets.forEach(p => buildFleetOn(npc, p, distance))
+  }
+
+  planets.forEach(p => buildDefenseOn(npc, p))
+
+  const canColonize =
+    cfg.autoColonize &&
+    planets.length < cfg.maxPlanetsPerNpc &&
+    now - (timed.lastColonizeCheck || 0) >= (cfg.colonizeInterval ?? 1200) * 1000
+  return {
+    shouldColonize: canColonize,
+    planets: planets.length,
+    moons
+  }
 }

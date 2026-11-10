@@ -36,7 +36,8 @@ export const createInitialPlanet = (playerId: string, planetName: string = 'Home
       [ShipType.EspionageProbe]: 0,
       [ShipType.SolarSatellite]: 0,
       [ShipType.DarkMatterHarvester]: 0,
-      [ShipType.Deathstar]: 0
+      [ShipType.Deathstar]: 0,
+      [ShipType.StarAbyssFreighter]: 0
     },
     defense: {
       [DefenseType.RocketLauncher]: 0,
@@ -109,7 +110,8 @@ export const createNPCPlanet = (
       [ShipType.EspionageProbe]: 0,
       [ShipType.SolarSatellite]: Math.floor(Math.random() * 20),
       [ShipType.DarkMatterHarvester]: 0,
-      [ShipType.Deathstar]: 0
+      [ShipType.Deathstar]: 0,
+      [ShipType.StarAbyssFreighter]: 0
     },
     defense: {
       [DefenseType.RocketLauncher]: Math.floor(Math.random() * 100),
@@ -203,7 +205,8 @@ export const createMoon = (
       [ShipType.EspionageProbe]: 0,
       [ShipType.SolarSatellite]: 0,
       [ShipType.DarkMatterHarvester]: 0,
-      [ShipType.Deathstar]: 0
+      [ShipType.Deathstar]: 0,
+      [ShipType.StarAbyssFreighter]: 0
     },
     defense: {
       [DefenseType.RocketLauncher]: 0,

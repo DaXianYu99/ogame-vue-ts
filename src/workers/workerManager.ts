@@ -172,6 +172,8 @@ class WorkerManager {
       weaponTech?: number
       shieldTech?: number
       armorTech?: number
+      attackBonus?: number
+      defenseBonus?: number
     }
     defender: {
       ships: Parameters<typeof import('@/utils/battleSimulator').simulateBattle>[0]['ships']
@@ -179,6 +181,8 @@ class WorkerManager {
       weaponTech?: number
       shieldTech?: number
       armorTech?: number
+      attackBonus?: number
+      defenseBonus?: number
     }
     maxRounds?: number
   }): Promise<ReturnType<typeof import('@/utils/battleSimulator').simulateBattle>> {

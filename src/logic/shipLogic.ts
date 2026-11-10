@@ -250,7 +250,8 @@ export const calculateFleetMinSpeed = (fleet: Partial<Fleet>, fleetSpeedBonus: n
  */
 export const deductFleet = (currentFleet: Fleet, fleet: Partial<Fleet>): void => {
   for (const [shipType, count] of Object.entries(fleet)) {
-    currentFleet[shipType as ShipType] -= count
+    const key = shipType as ShipType
+    currentFleet[key] = (currentFleet[key] || 0) - count
   }
 }
 
@@ -260,7 +261,8 @@ export const deductFleet = (currentFleet: Fleet, fleet: Partial<Fleet>): void =>
 export const addFleet = (currentFleet: Fleet, fleet: Partial<Fleet>): void => {
   for (const [shipType, count] of Object.entries(fleet)) {
     if (count > 0) {
-      currentFleet[shipType as ShipType] += count
+      const key = shipType as ShipType
+      currentFleet[key] = (currentFleet[key] || 0) + count
     }
   }
 }

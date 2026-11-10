@@ -225,7 +225,8 @@ export default {
     espionageProbe: '間諜探測器',
     solarSatellite: '太陽能衛星',
     darkMatterHarvester: '暗物質採集船',
-    deathstar: '死星'
+    deathstar: '死星',
+    starAbyssFreighter: '星淵貨艦'
   },
   shipDescriptions: {
     lightFighter: '基礎戰鬥單位',
@@ -242,7 +243,8 @@ export default {
     espionageProbe: '偵察敵方星球',
     solarSatellite: '提供額外能源，產能受星球溫度影響（溫度越高產能越高）',
     darkMatterHarvester: '專門用於採集暗物質的特殊飛船',
-    deathstar: '終極武器，能夠摧毀整個行星'
+    deathstar: '終極武器，能夠摧毀整個行星',
+    starAbyssFreighter: '超巨型運輸艦，貨艙容量冠絕全宇宙，專為搬運海量資源而生'
   },
   defenses: {
     rocketLauncher: '火箭發射器',
@@ -349,7 +351,8 @@ export default {
     darkMatterSpecialist: '暗物質專家',
     resourceBonus: '資源生產加成',
     darkMatterBonus: '暗物質生產加成',
-    energyBonus: '電力產量加成'
+    energyBonus: '電力產量加成',
+    sovereign: '帝王',
   },
   officerDescriptions: {
     commander: '提升建築速度和管理能力',
@@ -357,7 +360,8 @@ export default {
     engineer: '提升能源和防禦能力',
     geologist: '提升資源產量',
     technocrat: '提升研究速度和間諜能力',
-    darkMatterSpecialist: '提升暗物質採集效率'
+    darkMatterSpecialist: '提升暗物質採集效率',
+    sovereign: '帝王：全能型特殊军官，加成仅在玩家侧生效',
   },
   queue: {
     title: '進行中的任務',
@@ -662,7 +666,10 @@ export default {
     dismissMessage: '確定要解雇 {name} 嗎？不會返還任何費用。',
     hireFailed: '招募失敗',
     renewFailed: '續約失敗',
-    insufficientResources: '資源不足！'
+    insufficientResources: '資源不足！',
+    energyBonus: '能量产出',
+    fleetAttack: '舰队攻击',
+    fleetDefense: '舰队防御',
   },
   galaxyView: {
     title: '星系',

@@ -63,7 +63,8 @@ export const useGameConfig = () => {
     [ShipType.EspionageProbe]: 'espionageProbe',
     [ShipType.SolarSatellite]: 'solarSatellite',
     [ShipType.DarkMatterHarvester]: 'darkMatterHarvester',
-    [ShipType.Deathstar]: 'deathstar'
+    [ShipType.Deathstar]: 'deathstar',
+    [ShipType.StarAbyssFreighter]: 'starAbyssFreighter'
   }
 
   // 防御设施类型枚举值到翻译键的映射
@@ -115,7 +116,8 @@ export const useGameConfig = () => {
     [OfficerType.Engineer]: 'engineer',
     [OfficerType.Geologist]: 'geologist',
     [OfficerType.Technocrat]: 'technocrat',
-    [OfficerType.DarkMatterSpecialist]: 'darkMatterSpecialist'
+    [OfficerType.DarkMatterSpecialist]: 'darkMatterSpecialist',
+    [OfficerType.Sovereign]: 'sovereign'
   }
 
   // 翻译后的建筑配置

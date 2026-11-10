@@ -221,7 +221,8 @@ export default {
     espionageProbe: 'Sonda de Espionaje',
     solarSatellite: 'Satélite Solar',
     darkMatterHarvester: 'Recolector de Materia Oscura',
-    deathstar: 'Estrella de la Muerte'
+    deathstar: 'Estrella de la Muerte',
+    starAbyssFreighter: 'Carguero del Abismo Estelar'
   },
   shipDescriptions: {
     lightFighter: 'Unidad de combate básica',
@@ -238,7 +239,8 @@ export default {
     espionageProbe: 'Explora planetas enemigos',
     solarSatellite: 'Proporciona energía extra, producción basada en la temperatura del planeta (mayor en climas cálidos)',
     darkMatterHarvester: 'Nave especial para cosechar materia oscura',
-    deathstar: 'Arma definitiva capaz de destruir planetas enteros'
+    deathstar: 'Arma definitiva capaz de destruir planetas enteros',
+    starAbyssFreighter: 'Una nave de transporte colosal con capacidad de carga sin igual'
   },
   defenses: {
     rocketLauncher: 'Lanzacohetes',
@@ -348,7 +350,8 @@ export default {
     darkMatterSpecialist: 'Especialista en Materia Oscura',
     resourceBonus: 'Bono de Producción de Recursos',
     darkMatterBonus: 'Bono de Producción de Materia Oscura',
-    energyBonus: 'Bono de Producción de Energía'
+    energyBonus: 'Bono de Producción de Energía',
+    sovereign: 'Emperor',
   },
   officerDescriptions: {
     commander: 'Mejora la velocidad de construcción y gestión',
@@ -356,7 +359,8 @@ export default {
     engineer: 'Mejora la energía y defensa',
     geologist: 'Mejora la producción de recursos',
     technocrat: 'Mejora la velocidad de investigación y espionaje',
-    darkMatterSpecialist: 'Mejora la eficiencia de recolección de materia oscura'
+    darkMatterSpecialist: 'Mejora la eficiencia de recolección de materia oscura',
+    sovereign: 'Emperor: an all-round special officer; bonuses apply only on the player side',
   },
   queue: {
     title: 'Tareas Activas',
@@ -662,7 +666,10 @@ export default {
     dismissMessage: '¿Estás seguro de que quieres despedir a {name}? No se darán reembolsos.',
     hireFailed: 'Contratación Fallida',
     renewFailed: 'Renovación Fallida',
-    insufficientResources: '¡Recursos insuficientes!'
+    insufficientResources: '¡Recursos insuficientes!',
+    energyBonus: 'Energy Output',
+    fleetAttack: 'Fleet Attack',
+    fleetDefense: 'Fleet Defense',
   },
   galaxyView: {
     selectCoordinates: 'Seleccionar Coordenadas',

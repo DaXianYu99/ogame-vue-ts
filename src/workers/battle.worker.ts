@@ -25,6 +25,12 @@ const applyTechBonus = (baseValue: number, techLevel: number = 0, bonusPerLevel:
   return Math.floor(baseValue * (1 + techLevel * bonusPerLevel))
 }
 
+/** 军官战斗加成：攻击加成放大 attack，防御加成放大 shield / armor。
+ *  BattleSimulatorView 不传该字段 => 默认 0，沙盘模拟行为保持原版。 */
+const applyCombatBonus = (value: number, bonusPercent: number = 0): number => {
+  return Math.floor(value * (1 + bonusPercent / 100))
+}
+
 /**
  * 将舰队和防御转换为战斗单位数组
  */
@@ -39,9 +45,9 @@ const prepareCombatUnits = (side: BattleSideData, isDefender: boolean = false): 
         units.push({
           type: shipType as ShipType,
           count: count,
-          attack: applyTechBonus(config.attack, side.weaponTech),
-          shield: applyTechBonus(config.shield, side.shieldTech),
-          armor: applyTechBonus(config.armor, side.armorTech)
+          attack: applyCombatBonus(applyTechBonus(config.attack, side.weaponTech), side.attackBonus),
+          shield: applyCombatBonus(applyTechBonus(config.shield, side.shieldTech), side.defenseBonus),
+          armor: applyCombatBonus(applyTechBonus(config.armor, side.armorTech), side.defenseBonus)
         })
       }
     }
@@ -55,9 +61,9 @@ const prepareCombatUnits = (side: BattleSideData, isDefender: boolean = false): 
         units.push({
           type: defenseType as DefenseType,
           count: count,
-          attack: applyTechBonus(config.attack, side.weaponTech),
-          shield: applyTechBonus(config.shield, side.shieldTech),
-          armor: applyTechBonus(config.armor, side.armorTech)
+          attack: applyCombatBonus(applyTechBonus(config.attack, side.weaponTech), side.attackBonus),
+          shield: applyCombatBonus(applyTechBonus(config.shield, side.shieldTech), side.defenseBonus),
+          armor: applyCombatBonus(applyTechBonus(config.armor, side.armorTech), side.defenseBonus)
         })
       }
     }

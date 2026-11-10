@@ -250,7 +250,7 @@ export const processNPCAttackArrival = async (
   npc: NPC,
   mission: FleetMission,
   targetPlanet: Planet,
-  defender: Player,
+  defender: Player | NPC,
   allPlanets: Planet[]
 ): Promise<{ battleResult: BattleResult; moon: Planet | null; debrisField: DebrisField | null } | null> => {
   // 执行战斗（使用 Worker 进行异步计算）
@@ -261,7 +261,7 @@ export const processNPCAttackArrival = async (
     targetPlanet.defense, // 玩家防御
     targetPlanet.resources, // 玩家资源
     {} as Record<OfficerType, Officer>, // NPC没有军官系统
-    defender.officers || ({} as Record<OfficerType, Officer>), // 玩家军官
+    (defender as Player).officers || ({} as Record<OfficerType, Officer>), // 防御方军官（NPC 无军官系统）
     npc.technologies, // NPC科技等级
     defender.technologies, // 玩家科技等级
     gameStore.battleToFinish
@@ -436,7 +436,8 @@ export const processColonizeArrival = (
       [ShipType.EspionageProbe]: 0,
       [ShipType.SolarSatellite]: 0,
       [ShipType.DarkMatterHarvester]: 0,
-      [ShipType.Deathstar]: 0
+      [ShipType.Deathstar]: 0,
+      [ShipType.StarAbyssFreighter]: 0
     },
     defense: {
       [DefenseType.RocketLauncher]: 0,
@@ -901,7 +902,8 @@ const getShipCargoCapacity = (shipType: ShipType): number => {
     [ShipType.EspionageProbe]: 5,
     [ShipType.SolarSatellite]: 0,
     [ShipType.DarkMatterHarvester]: 1000,
-    [ShipType.Deathstar]: 1000000
+    [ShipType.Deathstar]: 1000000,
+    [ShipType.StarAbyssFreighter]: 0
   }
   return cargoCapacities[shipType] || 0
 }

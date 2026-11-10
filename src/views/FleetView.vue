@@ -652,6 +652,15 @@
   const { SHIPS } = useGameConfig()
   const planet = computed(() => gameStore.currentPlanet)
 
+  // 创建默认空舰队映射
+  const createEmptyFleet = (): Partial<Fleet> => {
+    const fleet: Partial<Fleet> = {}
+    for (const type of Object.values(ShipType)) {
+      fleet[type] = 0
+    }
+    return fleet
+  }
+
   // AlertDialog 状态
   const alertDialogOpen = ref(false)
   const alertDialogTitle = ref('')
@@ -690,19 +699,7 @@
 
   // 跳跃门相关
   const selectedJumpGateTarget = ref<typeof planet.value | null>(null)
-  const jumpGateFleet = ref<Partial<Fleet>>({
-    [ShipType.LightFighter]: 0,
-    [ShipType.HeavyFighter]: 0,
-    [ShipType.Cruiser]: 0,
-    [ShipType.Battleship]: 0,
-    [ShipType.SmallCargo]: 0,
-    [ShipType.LargeCargo]: 0,
-    [ShipType.ColonyShip]: 0,
-    [ShipType.Recycler]: 0,
-    [ShipType.EspionageProbe]: 0,
-    [ShipType.DarkMatterHarvester]: 0,
-    [ShipType.Deathstar]: 0
-  })
+  const jumpGateFleet = ref<Partial<Fleet>>(createEmptyFleet())
 
   // 是否显示跳跃门标签页（当前在月球上且有跳跃门）
   const showJumpGateTab = computed(() => {
@@ -800,19 +797,7 @@
   })
 
   // 选择的舰队
-  const selectedFleet = ref<Partial<Fleet>>({
-    [ShipType.LightFighter]: 0,
-    [ShipType.HeavyFighter]: 0,
-    [ShipType.Cruiser]: 0,
-    [ShipType.Battleship]: 0,
-    [ShipType.SmallCargo]: 0,
-    [ShipType.LargeCargo]: 0,
-    [ShipType.ColonyShip]: 0,
-    [ShipType.Recycler]: 0,
-    [ShipType.EspionageProbe]: 0,
-    [ShipType.DarkMatterHarvester]: 0,
-    [ShipType.Deathstar]: 0
-  })
+  const selectedFleet = ref<Partial<Fleet>>(createEmptyFleet())
 
   // 目标坐标
   const targetPosition = ref({ galaxy: 1, system: 1, position: 1 })
@@ -1008,8 +993,8 @@
   // 加载预设
   const loadPreset = (preset: FleetPreset) => {
     // 加载舰队配置
-    Object.keys(selectedFleet.value).forEach(key => {
-      selectedFleet.value[key as ShipType] = preset.fleet[key as ShipType] || 0
+    Object.values(ShipType).forEach(key => {
+      selectedFleet.value[key] = preset.fleet[key] || 0
     })
 
     // 不再加载坐标，保留用户当前输入的坐标

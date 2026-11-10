@@ -520,7 +520,7 @@
   import Sonner from '@/components/ui/sonner/Sonner.vue'
   import { MissionType, BuildingType, TechnologyType, DiplomaticEventType, ShipType, DefenseType } from '@/types/game'
   import type { FleetMission, NPC, MissileAttack } from '@/types/game'
-  import { DIPLOMATIC_CONFIG } from '@/config/gameConfig'
+  import { DIPLOMATIC_CONFIG, NPC_EXPANSION_CONFIG } from '@/config/gameConfig'
   import type { VersionInfo } from '@/utils/versionCheck'
   import { formatNumber, getResourceColor } from '@/utils/format'
   import { scaleNumber, scaleResources } from '@/utils/speed'
@@ -558,6 +558,7 @@
   import * as researchValidation from '@/logic/researchValidation'
   import * as fleetLogic from '@/logic/fleetLogic'
   import * as shipLogic from '@/logic/shipLogic'
+  import * as fleetStorageLogic from '@/logic/fleetStorageLogic'
   import * as npcGrowthLogic from '@/logic/npcGrowthLogic'
   import * as npcBehaviorLogic from '@/logic/npcBehaviorLogic'
   import * as diplomaticLogic from '@/logic/diplomaticLogic'
@@ -606,6 +607,9 @@
   // NPC行为系统更新函数（侦查和攻击决策）
   const npcBehaviorCounter = ref(0)
   const NPC_BEHAVIOR_INTERVAL = 5 // 每5秒检查一次NPC行为
+  // [war] 游戏累计发展时间（秒）与战争激活提示标记
+  const gameElapsedSeconds = ref(0)
+  const warNotified = ref(false)
 
   // 游戏循环定时器
   const gameLoop = ref<ReturnType<typeof setInterval> | null>(null)
@@ -892,7 +896,8 @@
   }
 
   const generateNPCPlanets = () => {
-    const npcCount = 200
+    // [npc-expansion] 势力数收敛到配置上限，保证每个 NPC 都有空间扩张到 10 行星
+    const npcCount = NPC_EXPANSION_CONFIG.maxNpcs
     for (let i = 0; i < npcCount; i++) {
       const position = gameLogic.generateRandomPosition()
       const key = gameLogic.generatePositionKey(position.galaxy, position.system, position.position)
@@ -906,6 +911,8 @@
     const now = Date.now()
     if (gameStore.isPaused) return
     gameStore.gameTime = now
+    // [war] 累计游戏发展时间（每次 updateGame 约 1 秒），用于 3 小时后激活 NPC 间战争
+    gameElapsedSeconds.value += 1
     // 检查军官过期
     gameLogic.checkOfficersExpiration(gameStore.player.officers, now)
     // 处理游戏更新（建造队列、研究队列等）
@@ -1446,7 +1453,8 @@
             missionsToCancel.forEach(m => {
               const npcOriginPlanet = npc.planets.find(p => p.id === m.originPlanetId)
               if (npcOriginPlanet) {
-                shipLogic.addFleet(npcOriginPlanet.fleet, m.fleet)
+                // [npc-expansion] 与玩家一致：按舰队仓储夹紧，溢出丢弃
+                fleetStorageLogic.addFleetSafely(npcOriginPlanet, m.fleet, npc.technologies)
               }
             })
 
@@ -1642,26 +1650,44 @@
       // 移除即将到来的警告（侦查已到达）
       removeIncomingFleetAlertById(mission.id)
     } else if (mission.missionType === MissionType.Attack) {
-      // NPC攻击到达 - 使用专门的NPC攻击处理逻辑
-      fleetLogic.processNPCAttackArrival(npc, mission, targetPlanet, gameStore.player, gameStore.player.planets).then(attackResult => {
+      // NPC攻击到达 - 动态判定防御方：目标星球属于某个NPC则由其防御，否则为玩家
+      const targetOwnerId = targetPlanet.ownerId
+      const defenderNpc = targetOwnerId ? npcStore.npcs.find(n => n.id === targetOwnerId) : undefined
+      const defender = defenderNpc || gameStore.player
+      const defenderPlanets = defenderNpc ? defenderNpc.planets : gameStore.player.planets
+
+      fleetLogic.processNPCAttackArrival(npc, mission, targetPlanet, defender, defenderPlanets).then(attackResult => {
         if (attackResult) {
-          // 更新成就统计 - 被NPC攻击 + 防御统计
-          gameLogic.trackDiplomacyStats(gameStore.player, 'attackedByNPC')
-          const debrisValue = attackResult.debrisField
-            ? attackResult.debrisField.resources.metal + attackResult.debrisField.resources.crystal
-            : 0
-          const won = attackResult.battleResult.winner === 'defender'
-          gameLogic.trackDefenseStats(gameStore.player, attackResult.battleResult, won, debrisValue)
+          if (!defenderNpc) {
+            // 玩家作为防御方：保留原有统计与战斗报告
+            gameLogic.trackDiplomacyStats(gameStore.player, 'attackedByNPC')
+            const debrisValue = attackResult.debrisField
+              ? attackResult.debrisField.resources.metal + attackResult.debrisField.resources.crystal
+              : 0
+            const won = attackResult.battleResult.winner === 'defender'
+            gameLogic.trackDefenseStats(gameStore.player, attackResult.battleResult, won, debrisValue)
 
-          // 添加战斗报告给玩家
-          gameStore.player.battleReports.push(attackResult.battleResult)
+            // 添加战斗报告给玩家
+            gameStore.player.battleReports.push(attackResult.battleResult)
 
-          // 如果生成月球，添加到玩家星球列表
-          if (attackResult.moon) {
-            gameStore.player.planets.push(attackResult.moon)
+            // 如果生成月球，添加到玩家星球列表
+            if (attackResult.moon) {
+              gameStore.player.planets.push(attackResult.moon)
+            }
+          } else {
+            // NPC 作为防御方：战斗在宇宙中真实发生（残骸/月球落入宇宙），但不计入玩家战绩
+            if (attackResult.moon) {
+              defenderNpc.planets.push(attackResult.moon)
+              const moonKey = gameLogic.generatePositionKey(
+                attackResult.moon.position.galaxy,
+                attackResult.moon.position.system,
+                attackResult.moon.position.position
+              )
+              universeStore.planets[moonKey] = attackResult.moon
+            }
           }
 
-          // 如果生成残骸场，添加到宇宙残骸场列表
+          // 残骸场（两种情形都加入宇宙，供玩家回收）
           if (attackResult.debrisField) {
             const existingDebris = universeStore.debrisFields[attackResult.debrisField.id]
             if (existingDebris) {
@@ -1691,8 +1717,8 @@
     const originPlanet = npc.planets.find(p => p.id === mission.originPlanetId)
     if (!originPlanet) return
 
-    // 返还舰队
-    shipLogic.addFleet(originPlanet.fleet, mission.fleet)
+    // [npc-expansion] 与玩家一致：按舰队仓储夹紧，溢出丢弃
+    fleetStorageLogic.addFleetSafely(originPlanet, mission.fleet, npc.technologies)
 
     // 如果携带掠夺资源，给NPC添加资源
     if (mission.cargo) {
@@ -1857,6 +1883,9 @@
   }
 
   const updateNPCGrowth = (deltaSeconds: number) => {
+    // [npc-expansion] 旧存档裁剪：多余的 NPC 只保留在本分支的历史存档里，此处收敛
+    trimNPCsToLimit()
+
     // 累积时间
     npcUpdateCounter.value += deltaSeconds
 
@@ -1994,7 +2023,16 @@
     // 使用累积的时间更新每个NPC（基于距离的成长系统）
     npcStore.npcs.forEach(npc => {
       if (homeworldForGrowth) {
-        npcGrowthLogic.updateNPCGrowthByDistance(npc, homeworldForGrowth.position, npcUpdateCounter.value, gameStore.gameSpeed)
+        // [npc-expansion] 扩展成长：多行星资源、加速建筑/科技、舰队滚动增长与换配
+        const growth = npcGrowthLogic.updateNPCGrowthExpanded(
+          npc,
+          homeworldForGrowth.position,
+          npcUpdateCounter.value,
+          gameStore.gameSpeed
+        )
+        if (growth.shouldColonize) {
+          expandNPCTerritory(npc)
+        }
         // 同步NPC星球数据到universeStore（确保侦查报告显示正确数据）
         syncNPCPlanetToUniverse(npc)
       }
@@ -2002,6 +2040,135 @@
 
     // 重置计数器
     npcUpdateCounter.value = 0
+  }
+
+
+  /**
+   * [npc-expansion] 旧存档 NPC 数量收敛到上限。
+   * 保留距母星最近的 maxNpcs 个（对抗性更高），并清掉被移除 NPC 的宇宙星球。
+   */
+  const trimNPCsToLimit = (): void => {
+    if (npcStore.npcs.length <= NPC_EXPANSION_CONFIG.maxNpcs) return
+    const sorted = [...npcStore.npcs].sort(
+      (a, b) => (a.distanceToHomeworld ?? 999999) - (b.distanceToHomeworld ?? 999999)
+    )
+    const removed = sorted.slice(NPC_EXPANSION_CONFIG.maxNpcs)
+    removed.forEach(npc => {
+      npc.planets.forEach(p => {
+        const key = gameLogic.generatePositionKey(p.position.galaxy, p.position.system, p.position.position)
+        if (universeStore.planets[key] && universeStore.planets[key].ownerId === npc.id) {
+          delete universeStore.planets[key]
+        }
+      })
+    })
+    npcStore.npcs = sorted.slice(0, NPC_EXPANSION_CONFIG.maxNpcs)
+  }
+
+  /**
+   * [npc-expansion] 每个 NPC 初始仍只有 1 个星球（上游初始化逻辑未改）。
+   * 这里每次成长检查最多新增 1 个殖民地，直到 maxPlanetsPerNpc；
+   * 新殖民地立刻纳入 updateNPCGrowthExpanded 的运营循环（资源/建筑/舰队/防御）。
+   */
+  // [war] 争议性殖民：指定 3 个 NPC 优先在玩家附近星域扩张，制造争夺感
+  let controversialColonizerIds: string[] = []
+  const ensureControversialColonizers = () => {
+    if (controversialColonizerIds.length > 0 || npcStore.npcs.length === 0) return
+    controversialColonizerIds = npcStore.npcs.slice(0, Math.min(3, npcStore.npcs.length)).map(n => n.id)
+  }
+  const isControversialColonizer = (npc: { id: string }): boolean => {
+    ensureControversialColonizers()
+    return controversialColonizerIds.includes(npc.id)
+  }
+  const generateControversialPosition = (): { galaxy: number; system: number; position: number } | null => {
+    const playerPlanets = gameStore.player.planets
+    if (playerPlanets.length === 0) return null
+    const centerPlanet = playerPlanets[Math.floor(Math.random() * playerPlanets.length)]
+    if (!centerPlanet) return null
+    const center = centerPlanet.position
+    for (let i = 0; i < 400; i++) {
+      const system = Math.min(10, Math.max(1, center.system + (Math.floor(Math.random() * 5) - 2)))
+      const candidate = { galaxy: center.galaxy, system, position: Math.floor(Math.random() * 10) + 1 }
+      const key = gameLogic.generatePositionKey(candidate.galaxy, candidate.system, candidate.position)
+      const occupiedByPlayer = playerPlanets.some(
+        p =>
+          p.position.galaxy === candidate.galaxy &&
+          p.position.system === candidate.system &&
+          p.position.position === candidate.position
+      )
+      if (!universeStore.planets[key] && !occupiedByPlayer) return candidate
+    }
+    return null
+  }
+
+  const expandNPCTerritory = (npc: (typeof npcStore.npcs)[number]): boolean => {
+    const cfg = NPC_EXPANSION_CONFIG
+    const planets = npc.planets.filter(p => !p.isMoon)
+    const source = planets[0]
+    if (!source) return false
+    if (planets.length >= cfg.maxPlanetsPerNpc) return false
+    // 月球只设上限、不主动生成；这里仅做防御性检查
+    if (npc.planets.filter(p => p.isMoon).length > cfg.maxMoonsPerNpc) return false
+
+    // [npc-expansion] 殖民需要消耗 1 艘殖民船（与玩家一致）；没有则本次不殖民，
+    // 由 buildFleetOn 以最高优先级补足殖民船后下一评估周期再尝试。
+    let shipPlanet: (typeof npc.planets)[number] | null = null
+    for (const p of npc.planets) {
+      const f = p.fleet as unknown as Record<string, number>
+      if ((f[ShipType.ColonyShip] || 0) > 0) { shipPlanet = p; break }
+    }
+    if (!shipPlanet) return false
+    const shipFleet = shipPlanet.fleet as unknown as Record<string, number>
+    shipFleet[ShipType.ColonyShip] = (shipFleet[ShipType.ColonyShip] || 0) - 1
+
+    let position: { galaxy: number; system: number; position: number } | null = null
+    // [war] 争议性殖民：指定的 3 个 NPC 优先在玩家附近星域殖民（制造争夺感），失败再退回全宇宙随机
+    if (isControversialColonizer(npc)) {
+      position = generateControversialPosition()
+    }
+    if (!position) {
+      for (let i = 0; i < 400; i++) {
+        const candidate = gameLogic.generateRandomPosition()
+        const key = gameLogic.generatePositionKey(candidate.galaxy, candidate.system, candidate.position)
+        const occupiedByPlayer = gameStore.player.planets.some(
+          p =>
+            p.position.galaxy === candidate.galaxy &&
+            p.position.system === candidate.system &&
+            p.position.position === candidate.position
+        )
+        if (!universeStore.planets[key] && !occupiedByPlayer) {
+          position = candidate
+          break
+        }
+      }
+    }
+    if (!position) return false
+
+    const colony = planetLogic.createNPCPlanet(Date.now() % 100000000, position, t('planet.planetPrefix'))
+    colony.id = `npc_colony_${npc.id}_${npc.planets.length}_${Date.now()}`
+    colony.ownerId = npc.id
+    // 新殖民地按主星 60% 建筑水平起步，之后由扩展成长系统继续发展
+    const srcB = source.buildings as unknown as Record<string, number>
+    const dstB = colony.buildings as unknown as Record<string, number>
+    Object.keys(srcB).forEach(k => {
+      dstB[k] = Math.floor((srcB[k] || 0) * 0.6)
+    })
+    const srcD = source.defense as unknown as Record<string, number>
+    const dstD = colony.defense as unknown as Record<string, number>
+    Object.keys(srcD).forEach(k => {
+      dstD[k] = Math.floor((srcD[k] || 0) * 0.6)
+    })
+    colony.maxSpace = Math.max(colony.maxSpace, source.maxSpace || 200)
+    // 新殖民地起步时带少量资源，保证第一次运营循环就能升级/造舰
+    colony.resources.metal = Math.max(colony.resources.metal, 200000)
+    colony.resources.crystal = Math.max(colony.resources.crystal, 100000)
+    colony.resources.deuterium = Math.max(colony.resources.deuterium, 50000)
+
+    npc.planets.push(colony)
+    const key = gameLogic.generatePositionKey(position.galaxy, position.system, position.position)
+    universeStore.planets[key] = colony
+    // [npc-expansion] 殖民成功后记录时间，配合 updateNPCGrowthExpanded 的 colonizeInterval 实现「每 20 分钟一颗」
+    ;(npc as unknown as { lastColonizeCheck?: number }).lastColonizeCheck = Date.now()
+    return true
   }
 
   const updateNPCBehavior = (deltaSeconds: number) => {
@@ -2148,6 +2315,15 @@
         }
       }
     })
+
+    // [war] 激活 NPC 间真实战争（游戏发展时间 ≥ 3 小时后：联盟 / 背刺 / 连坐 / 盟友协防 / 复仇）
+    const warResult = npcBehaviorLogic.runInterNPCWar(npcStore.npcs, now, gameElapsedSeconds.value)
+    if (warResult.activated && !warNotified.value) {
+      warNotified.value = true
+      toast.info('⚔️ 星际战争爆发', {
+        description: '游戏发展已满 3 小时，NPC 势力间的联盟、背刺、连坐、盟友协防与复仇袭击已全面激活。'
+      })
+    }
 
     npcBehaviorCounter.value = 0
   }

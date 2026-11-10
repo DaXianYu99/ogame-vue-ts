@@ -32,7 +32,7 @@
 
           <!-- 招募成本 -->
           <div class="space-y-2">
-            <p class="text-sm font-medium text-muted-foreground">{{ t('officersView.recruitCost') }} (7{{ t('officersView.days') }}):</p>
+            <p class="text-sm font-medium text-muted-foreground">{{ t('officersView.recruitCost') }} ({{ getHireDays(officerType) }}{{ t('officersView.days') }}):</p>
             <div class="space-y-1.5">
               <div
                 v-for="resourceType in costResourceTypes"
@@ -86,6 +86,18 @@
                 <span class="text-green-600 dark:text-green-400">↑</span>
                 <span>{{ t('officersView.defense') }} +{{ OFFICERS[officerType].benefits.defenseBonus }}%</span>
               </div>
+              <div v-if="OFFICERS[officerType].benefits.fleetAttackBonus" class="flex items-center gap-2">
+                <span class="text-green-600 dark:text-green-400">↑</span>
+                <span>{{ t('officersView.fleetAttack') }} +{{ OFFICERS[officerType].benefits.fleetAttackBonus }}%</span>
+              </div>
+              <div v-if="OFFICERS[officerType].benefits.fleetDefenseBonus" class="flex items-center gap-2">
+                <span class="text-green-600 dark:text-green-400">↑</span>
+                <span>{{ t('officersView.fleetDefense') }} +{{ OFFICERS[officerType].benefits.fleetDefenseBonus }}%</span>
+              </div>
+              <div v-if="OFFICERS[officerType].benefits.energyProductionBonus" class="flex items-center gap-2">
+                <span class="text-green-600 dark:text-green-400">↑</span>
+                <span>{{ t('officersView.energyBonus') }} +{{ OFFICERS[officerType].benefits.energyProductionBonus }}%</span>
+              </div>
               <div v-if="OFFICERS[officerType].benefits.storageCapacityBonus" class="flex items-center gap-2">
                 <span class="text-green-600 dark:text-green-400">↑</span>
                 <span>{{ t('officersView.storageCapacity') }} +{{ OFFICERS[officerType].benefits.storageCapacityBonus }}%</span>
@@ -104,7 +116,7 @@
           <!-- 操作按钮 -->
           <div class="flex flex-col sm:flex-row gap-2">
             <Button v-if="!isOfficerActive(officerType)" @click="handleHire(officerType)" :disabled="!canHire(officerType)" class="w-full">
-              {{ t('officersView.hire') }} (7{{ t('officersView.days') }})
+              {{ t('officersView.hire') }} ({{ getHireDays(officerType) }}{{ t('officersView.days') }})
             </Button>
             <Button
               v-if="isOfficerActive(officerType)"
@@ -112,7 +124,7 @@
               :disabled="!canHire(officerType)"
               class="w-full sm:flex-1"
             >
-              {{ t('officersView.renew') }} (7{{ t('officersView.days') }})
+              {{ t('officersView.renew') }} ({{ getHireDays(officerType) }}{{ t('officersView.days') }})
             </Button>
             <Button v-if="isOfficerActive(officerType)" @click="handleDismiss(officerType)" variant="outline" class="w-full sm:w-auto">
               {{ t('officersView.dismiss') }}
@@ -211,6 +223,12 @@
     { key: 'darkMatter' as const }
   ]
 
+  // 帝王的招募 / 续约时长（天）；其余军官维持原版 7 天。
+  // 到期判定 checkAndDeactivateExpiredOfficers、解雇 handleDismiss、GM 面板均按原版不变。
+  const SPECIAL_HIRE_DAYS = 100
+  const getHireDays = (officerType: OfficerType): number =>
+    officerType === OfficerType.Sovereign ? SPECIAL_HIRE_DAYS : 7
+
   // 检查军官是否激活
   const isOfficerActive = (officerType: OfficerType): boolean => {
     const officer = gameStore.player.officers[officerType]
@@ -263,7 +281,7 @@
     confirmDialogTitle.value = t('officersView.hireTitle')
     confirmDialogMessage.value = t('officersView.hireMessage').replace('{name}', OFFICERS.value[officerType].name)
     confirmDialogAction.value = () => {
-      const success = hireOfficer(officerType, 7)
+      const success = hireOfficer(officerType, getHireDays(officerType))
       if (!success) {
         alertDialogTitle.value = t('officersView.hireFailed')
         alertDialogMessage.value = t('officersView.insufficientResources')
@@ -292,7 +310,7 @@
     confirmDialogTitle.value = t('officersView.renewTitle')
     confirmDialogMessage.value = t('officersView.renewMessage').replace('{name}', OFFICERS.value[officerType].name)
     confirmDialogAction.value = () => {
-      const success = renewOfficer(officerType, 7)
+      const success = renewOfficer(officerType, getHireDays(officerType))
       if (!success) {
         alertDialogTitle.value = t('officersView.renewFailed')
         alertDialogMessage.value = t('officersView.insufficientResources')
