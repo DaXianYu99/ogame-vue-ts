@@ -626,19 +626,21 @@
   }
 
   // 只写 relations[player.id]；不触碰 allies / enemies / 其他实体 id 的关系条目
+  // [history-fix] 已存在的关系展开合并，只覆盖 status/reputation/lastUpdated，保留 fromId/toId/history；
+  // 不存在时按 DiplomaticRelation 结构新建，history 为空数组。
   const applyUniversalEnemyRelations = (ids: string[], hostile: boolean) => {
     const now = Date.now()
+    const playerId = gameStore.player.id
+    const reputation = hostile ? DIPLOMATIC_CONFIG.HOSTILE_THRESHOLD : 0
+    const status = hostile ? RelationStatus.Hostile : RelationStatus.Neutral
     ids.forEach(id => {
       const npc = npcStore.npcs.find(n => n.id === id)
       if (!npc) return
       if (!npc.relations) npc.relations = {}
-      npc.relations[gameStore.player.id] = {
-        fromId: npc.id,
-        toId: gameStore.player.id,
-        reputation: hostile ? DIPLOMATIC_CONFIG.HOSTILE_THRESHOLD : 0,
-        status: hostile ? RelationStatus.Hostile : RelationStatus.Neutral,
-        lastUpdated: now
-      }
+      const existing = npc.relations[playerId]
+      npc.relations[playerId] = existing
+        ? { ...existing, reputation, status, lastUpdated: now }
+        : { fromId: npc.id, toId: playerId, reputation, status, lastUpdated: now, history: [] }
     })
   }
 

@@ -2079,6 +2079,22 @@
     ensureControversialColonizers()
     return controversialColonizerIds.includes(npc.id)
   }
+
+  // [anti-steal] 玩家在途殖民目标保护：候选格不得等于任一 outbound Colonize 任务的 targetPosition
+  const isPlayerColonizeTarget = (candidate: { galaxy: number; system: number; position: number }): boolean => {
+    const missions = gameStore.player.fleetMissions
+    if (!Array.isArray(missions)) return false
+    return missions.some(
+      m =>
+        m.status === 'outbound' &&
+        m.missionType === MissionType.Colonize &&
+        !!m.targetPosition &&
+        m.targetPosition.galaxy === candidate.galaxy &&
+        m.targetPosition.system === candidate.system &&
+        m.targetPosition.position === candidate.position
+    )
+  }
+
   const generateControversialPosition = (): { galaxy: number; system: number; position: number } | null => {
     const playerPlanets = gameStore.player.planets
     if (playerPlanets.length === 0) return null
@@ -2095,7 +2111,7 @@
           p.position.system === candidate.system &&
           p.position.position === candidate.position
       )
-      if (!universeStore.planets[key] && !occupiedByPlayer) return candidate
+      if (!universeStore.planets[key] && !occupiedByPlayer && !isPlayerColonizeTarget(candidate)) return candidate
     }
     return null
   }
@@ -2135,7 +2151,7 @@
             p.position.system === candidate.system &&
             p.position.position === candidate.position
         )
-        if (!universeStore.planets[key] && !occupiedByPlayer) {
+        if (!universeStore.planets[key] && !occupiedByPlayer && !isPlayerColonizeTarget(candidate)) {
           position = candidate
           break
         }
