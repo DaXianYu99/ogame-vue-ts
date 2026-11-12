@@ -1,28 +1,8 @@
 <template>
-  <!-- 无权限时显示404 -->
-  <div v-if="!gameStore.player.isGMEnabled" class="container mx-auto p-4 sm:p-6 flex items-center justify-center min-h-[60vh]">
-    <Empty class="border-0">
-      <EmptyMedia>
-        <div class="text-8xl sm:text-9xl font-bold text-muted-foreground/20">404</div>
-      </EmptyMedia>
-      <EmptyHeader>
-        <EmptyTitle>{{ t('notFound.title') }}</EmptyTitle>
-        <EmptyDescription>{{ t('notFound.description') }}</EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button @click="goHome" size="lg">
-          <Home class="mr-2 h-4 w-4" />
-          {{ t('notFound.goHome') }}
-        </Button>
-      </EmptyContent>
-    </Empty>
-  </div>
-
-  <!-- 有权限时显示GM页面 -->
-  <div v-else class="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+  <!-- [gm-open] 移除 GM 面板的隐藏限制：直接显示管理面板（不再依赖 isGMEnabled） -->
+  <div class="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl sm:text-3xl font-bold">{{ t('gmView.title') }}</h1>
-      <Badge variant="destructive">{{ t('gmView.adminOnly') }}</Badge>
     </div>
 
     <!-- 星球选择 -->
@@ -295,7 +275,6 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
-  import { useRouter } from 'vue-router'
   import { toast } from 'vue-sonner'
   import { useGameStore } from '@/stores/gameStore'
   import { useNPCStore } from '@/stores/npcStore'
@@ -306,11 +285,9 @@
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Label } from '@/components/ui/label'
-  import { Badge } from '@/components/ui/badge'
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
   import { Switch } from '@/components/ui/switch'
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-  import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
   import {
     AlertDialog,
     AlertDialogAction,
@@ -329,7 +306,7 @@
   import { calculateMaxFleetStorage } from '@/logic/fleetStorageLogic'
   import { calculateMissileSiloCapacity } from '@/logic/missileLogic'
   import { generateId } from '@/utils/id'
-  import { Home, Trash2 } from 'lucide-vue-next'
+  import { Trash2 } from 'lucide-vue-next'
 
   // --- 预设系统 ---
   interface GMPreset {
@@ -607,7 +584,6 @@
   }
   // --- 预设系统结束 ---
 
-  const router = useRouter()
   const gameStore = useGameStore()
   const npcStore = useNPCStore()
   const universeStore = useUniverseStore()
@@ -693,10 +669,6 @@
   // 更新玩家积分的辅助函数
   const updatePlayerPoints = () => {
     gameStore.player.points = publicLogic.calculatePlayerPoints(gameStore.player)
-  }
-
-  const goHome = () => {
-    router.push('/')
   }
 
   // 默认选中当前正在游玩的星球

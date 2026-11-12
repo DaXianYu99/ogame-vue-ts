@@ -664,8 +664,8 @@
     { name: computed(() => t('nav.ranking')), path: '/ranking', icon: Crown },
     { name: computed(() => t('nav.messages')), path: '/messages', icon: Mail },
     { name: computed(() => t('nav.settings')), path: '/settings', icon: Settings },
-    // GM菜单在启用GM模式时显示
-    ...(gameStore.player.isGMEnabled ? [{ name: computed(() => t('nav.gm')), path: '/gm', icon: Wrench }] : [])
+    // [gm-open] GM 菜单常驻显示（移除 isGMEnabled 隐藏限制）
+    { name: computed(() => t('nav.gm')), path: '/gm', icon: Wrench }
   ])
 
   // 使用直接计算，不再缓存
