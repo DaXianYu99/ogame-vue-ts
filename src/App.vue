@@ -2146,22 +2146,17 @@
     const colony = planetLogic.createNPCPlanet(Date.now() % 100000000, position, t('planet.planetPrefix'))
     colony.id = `npc_colony_${npc.id}_${npc.planets.length}_${Date.now()}`
     colony.ownerId = npc.id
-    // 新殖民地按主星 60% 建筑水平起步，之后由扩展成长系统继续发展
-    const srcB = source.buildings as unknown as Record<string, number>
-    const dstB = colony.buildings as unknown as Record<string, number>
-    Object.keys(srcB).forEach(k => {
-      dstB[k] = Math.floor((srcB[k] || 0) * 0.6)
+    // [whiteboard] 新殖民地为白板：建筑/舰队/防御全 0（建筑由 createNPCPlanet 保证），
+    // 资源固定 500/500，空间保持 createNPCPlanet 的 200；不再复制主星 60% 水平。
+    const colonyFleet = colony.fleet as unknown as Record<string, number>
+    Object.values(ShipType).forEach(shipType => {
+      colonyFleet[shipType] = 0
     })
-    const srcD = source.defense as unknown as Record<string, number>
-    const dstD = colony.defense as unknown as Record<string, number>
-    Object.keys(srcD).forEach(k => {
-      dstD[k] = Math.floor((srcD[k] || 0) * 0.6)
+    const colonyDefense = colony.defense as unknown as Record<string, number>
+    Object.values(DefenseType).forEach(defenseType => {
+      colonyDefense[defenseType] = 0
     })
-    colony.maxSpace = Math.max(colony.maxSpace, source.maxSpace || 200)
-    // 新殖民地起步时带少量资源，保证第一次运营循环就能升级/造舰
-    colony.resources.metal = Math.max(colony.resources.metal, 200000)
-    colony.resources.crystal = Math.max(colony.resources.crystal, 100000)
-    colony.resources.deuterium = Math.max(colony.resources.deuterium, 50000)
+    colony.resources = { metal: 500, crystal: 500, deuterium: 0, darkMatter: 0, energy: 0 }
 
     npc.planets.push(colony)
     const key = gameLogic.generatePositionKey(position.galaxy, position.system, position.position)
@@ -2169,6 +2164,21 @@
     // [npc-expansion] 殖民成功后记录时间，配合 updateNPCGrowthExpanded 的 colonizeInterval 实现「每 20 分钟一颗」
     ;(npc as unknown as { lastColonizeCheck?: number }).lastColonizeCheck = Date.now()
     return true
+  }
+
+  // [universal-enemy] 读取 GM 面板写入的 localStorage 名单（仅读，不写存档字段）
+  const readUniversalEnemyIds = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem('gm_universal_enemy')
+      if (!raw) return new Set()
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return new Set()
+      const obj = parsed as { enabled?: unknown; ids?: unknown }
+      if (obj.enabled !== true || !Array.isArray(obj.ids)) return new Set()
+      return new Set(obj.ids.filter((id): id is string => typeof id === 'string'))
+    } catch {
+      return new Set()
+    }
   }
 
   const updateNPCBehavior = (deltaSeconds: number) => {
@@ -2211,7 +2221,17 @@
     const config = npcBehaviorLogic.calculateDynamicBehavior(gameStore.player.points)
 
     // 更新每个NPC的行为（随机顺序，避免总是优先处理同一批NPC）
-    const shuffledNpcs = [...npcStore.npcs].sort(() => Math.random() - 0.5)
+    // [universal-enemy] 名单内 NPC 优先处理：仅调整顺序，不改并发上限与任何闸门
+    const universalEnemyIds = readUniversalEnemyIds()
+    const enemyGroup: NPC[] = []
+    const otherGroup: NPC[] = []
+    for (const npc of npcStore.npcs) {
+      if (universalEnemyIds.has(npc.id)) enemyGroup.push(npc)
+      else otherGroup.push(npc)
+    }
+    enemyGroup.sort(() => Math.random() - 0.5)
+    otherGroup.sort(() => Math.random() - 0.5)
+    const shuffledNpcs = [...enemyGroup, ...otherGroup]
     shuffledNpcs.forEach(npc => {
       // 在更新前检查当前并发数，如果已达上限则跳过该NPC
       npcBehaviorLogic.updateNPCBehaviorWithLimit(npc, gameStore.player, allPlanets, universeStore.debrisFields, now, {

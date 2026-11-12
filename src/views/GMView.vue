@@ -210,6 +210,12 @@
         <Button @click="accelerateAllMissions" variant="secondary" class="w-full" :disabled="!selectedNPC">
           {{ t('gmView.accelerateMissions') || 'Accelerate All Missions (5s)' }}
         </Button>
+
+        <!-- [universal-enemy] 宇宙公敌开关（唯一新增 UI，无 toast / 外交报告 / 成就） -->
+        <div class="flex items-center justify-between gap-3 pt-2 border-t">
+          <Label for="gm-universal-enemy">{{ t('gmView.universalEnemy') || '宇宙公敌' }}</Label>
+          <Switch id="gm-universal-enemy" :checked="universalEnemyEnabled" @update:checked="handleUniversalEnemyToggle" />
+        </div>
       </CardContent>
     </Card>
 
@@ -302,6 +308,7 @@
   import { Label } from '@/components/ui/label'
   import { Badge } from '@/components/ui/badge'
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+  import { Switch } from '@/components/ui/switch'
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
   import {
@@ -314,8 +321,10 @@
     AlertDialogHeader,
     AlertDialogTitle
   } from '@/components/ui/alert-dialog'
-  import { BuildingType, TechnologyType, ShipType, DefenseType, OfficerType } from '@/types/game'
+  import { BuildingType, TechnologyType, ShipType, DefenseType, OfficerType, RelationStatus } from '@/types/game'
   import * as npcBehaviorLogic from '@/logic/npcBehaviorLogic'
+  import * as npcGrowthLogic from '@/logic/npcGrowthLogic'
+  import { DIPLOMATIC_CONFIG } from '@/config/gameConfig'
   import * as publicLogic from '@/logic/publicLogic'
   import { calculateMaxFleetStorage } from '@/logic/fleetStorageLogic'
   import { calculateMissileSiloCapacity } from '@/logic/missileLogic'
@@ -602,6 +611,82 @@
   const gameStore = useGameStore()
   const npcStore = useNPCStore()
   const universeStore = useUniverseStore()
+
+  // ===== [universal-enemy] GM「宇宙公敌」开关（独立 localStorage，不写入存档字段）=====
+  const UNIVERSAL_ENEMY_KEY = 'gm_universal_enemy'
+  interface UniversalEnemyConfig {
+    enabled: boolean
+    ids: string[]
+  }
+
+  // 解析失败 / 结构不符 → 删除 key 并回默认（沿用 gm_presets_ 的容错写法）
+  const readUniversalEnemyConfig = (): UniversalEnemyConfig => {
+    try {
+      const raw = localStorage.getItem(UNIVERSAL_ENEMY_KEY)
+      if (!raw) return { enabled: false, ids: [] }
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') {
+        localStorage.removeItem(UNIVERSAL_ENEMY_KEY)
+        return { enabled: false, ids: [] }
+      }
+      const obj = parsed as { enabled?: unknown; ids?: unknown }
+      if (typeof obj.enabled !== 'boolean' || !Array.isArray(obj.ids) || !obj.ids.every(id => typeof id === 'string')) {
+        localStorage.removeItem(UNIVERSAL_ENEMY_KEY)
+        return { enabled: false, ids: [] }
+      }
+      return { enabled: obj.enabled, ids: obj.ids as string[] }
+    } catch {
+      localStorage.removeItem(UNIVERSAL_ENEMY_KEY)
+      return { enabled: false, ids: [] }
+    }
+  }
+
+  const initialUniversalEnemy = readUniversalEnemyConfig()
+  const universalEnemyEnabled = ref(initialUniversalEnemy.enabled)
+  const universalEnemyIds = ref<string[]>(initialUniversalEnemy.ids)
+
+  const persistUniversalEnemy = (config: UniversalEnemyConfig) => {
+    localStorage.setItem(UNIVERSAL_ENEMY_KEY, JSON.stringify(config))
+  }
+
+  // 只写 relations[player.id]；不触碰 allies / enemies / 其他实体 id 的关系条目
+  const applyUniversalEnemyRelations = (ids: string[], hostile: boolean) => {
+    const now = Date.now()
+    ids.forEach(id => {
+      const npc = npcStore.npcs.find(n => n.id === id)
+      if (!npc) return
+      if (!npc.relations) npc.relations = {}
+      npc.relations[gameStore.player.id] = {
+        fromId: npc.id,
+        toId: gameStore.player.id,
+        reputation: hostile ? DIPLOMATIC_CONFIG.HOSTILE_THRESHOLD : 0,
+        status: hostile ? RelationStatus.Hostile : RelationStatus.Neutral,
+        lastUpdated: now
+      }
+    })
+  }
+
+  const handleUniversalEnemyToggle = (enabled: boolean) => {
+    if (enabled) {
+      // 按舰队战力降序取前 40（不足取实际数量）；随后冻结，不因排名漂移刷新
+      const ids = npcStore.npcs
+        .map(npc => ({ id: npc.id, power: npcGrowthLogic.calculateNPCPower(npc).totalFleetPower }))
+        .sort((a, b) => b.power - a.power)
+        .slice(0, 40)
+        .map(item => item.id)
+      universalEnemyEnabled.value = true
+      universalEnemyIds.value = ids
+      persistUniversalEnemy({ enabled: true, ids })
+      applyUniversalEnemyRelations(ids, true)
+    } else {
+      // 关闭：按同一份名单恢复中立，一次性写入；随后名单失效
+      applyUniversalEnemyRelations(universalEnemyIds.value, false)
+      universalEnemyEnabled.value = false
+      universalEnemyIds.value = []
+      persistUniversalEnemy({ enabled: false, ids: [] })
+    }
+  }
+
   const { t } = useI18n()
   const { BUILDINGS, TECHNOLOGIES, SHIPS, DEFENSES, OFFICERS } = useGameConfig()
 

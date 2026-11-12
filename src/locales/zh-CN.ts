@@ -1118,6 +1118,7 @@ export default {
     cannotDeleteDefault: '无法删除默认预设',
     npcTesting: 'NPC 测试',
     npcTestingDesc: '测试NPC侦查和攻击行为',
+    universalEnemy: '宇宙公敌',
     selectNPC: '选择NPC',
     chooseNPC: '选择一个NPC',
     targetPlanet: '目标星球',
