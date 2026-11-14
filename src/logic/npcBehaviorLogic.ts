@@ -962,6 +962,53 @@ export const evaluateWinProbability = (npcFleet: Partial<Fleet>, spyReport: SpyR
   return npcPower / totalEnemyPower
 }
 
+// 攻击任务使用的战斗舰类型（与原实现保持一致）
+const COMBAT_SHIP_TYPES: ShipType[] = [
+  ShipType.LightFighter,
+  ShipType.HeavyFighter,
+  ShipType.Cruiser,
+  ShipType.Battleship,
+  ShipType.Bomber,
+  ShipType.Destroyer,
+  ShipType.Battlecruiser,
+  ShipType.Deathstar
+]
+
+// 取舰队中的战斗舰子集（不修改原对象）
+const pickCombatFleet = (fleet: Partial<Fleet> | undefined): Partial<Fleet> => {
+  const result: Partial<Fleet> = {}
+  if (!fleet) return result
+  for (const shipType of COMBAT_SHIP_TYPES) {
+    const count = fleet[shipType] || 0
+    if (count > 0) result[shipType] = count
+  }
+  return result
+}
+
+/**
+ * 选择“战斗舰队战力最强”的 NPC 星球（同分取距离更近者）。
+ * 仅用于攻击任务：避免原 selectBestNPCPlanet 的“最近且任意有船”选中白板/运输星导致无兵可出。
+ */
+const selectStrongestCombatPlanet = (
+  npc: NPC,
+  targetPosition: { galaxy: number; system: number; position: number }
+): Planet | null => {
+  let best: Planet | null = null
+  let bestPower = -1
+  let bestDistance = Infinity
+  for (const planet of npc.planets) {
+    const power = calculateFleetCombatPower(pickCombatFleet(planet.fleet))
+    if (power <= 0) continue
+    const distance = fleetLogic.calculateDistance(planet.position, targetPosition)
+    if (power > bestPower || (power === bestPower && distance < bestDistance)) {
+      best = planet
+      bestPower = power
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
 /**
  * 决定NPC攻击舰队组成
  * 基于侦查报告和NPC实力，只有当有合理胜算时才攻击
@@ -972,47 +1019,40 @@ const decideAttackFleet = (_npc: NPC, npcPlanet: Planet, spyReport: SpyReport, c
   const enemyDefensePower = calculateDefenseCombatPower(spyReport.defense)
   const totalEnemyPower = enemyFleetPower + enemyDefensePower
 
-  // 先计算可用的攻击舰队
-  const attackFleet: Partial<Fleet> = {}
-  let hasShips = false
+  // 该星全部战斗舰（判定与出击都以它为基准）
+  const available = pickCombatFleet(npcPlanet.fleet)
+  if (Object.keys(available).length === 0) return null
 
-  // 优先派出战斗舰船
-  const combatShips = [
-    ShipType.LightFighter,
-    ShipType.HeavyFighter,
-    ShipType.Cruiser,
-    ShipType.Battleship,
-    ShipType.Bomber,
-    ShipType.Destroyer,
-    ShipType.Battlecruiser,
-    ShipType.Deathstar
-  ]
-
-  for (const shipType of combatShips) {
-    const available = npcPlanet.fleet[shipType] || 0
-    if (available > 0) {
-      // 使用 Math.ceil 确保至少派出1艘（如果有的话）
-      // 但不能超过可用数量
-      const sendCount = Math.min(available, Math.max(1, Math.floor(available * config.attackFleetSizeRatio)))
-      attackFleet[shipType] = sendCount
-      hasShips = true
+  // 无情报（反击等复用此函数）：沿用原比例出击
+  if (totalEnemyPower <= 0) {
+    const attackFleet: Partial<Fleet> = {}
+    for (const [shipType, count] of Object.entries(available)) {
+      const availableCount = count as number
+      const sendCount = Math.min(availableCount, Math.max(1, Math.floor(availableCount * config.attackFleetSizeRatio)))
+      attackFleet[shipType as ShipType] = sendCount
     }
+    return attackFleet
   }
 
-  if (!hasShips) {
-    return null
-  }
-
-  // 计算NPC舰队战斗力
-  const npcPower = calculateFleetCombatPower(attackFleet)
-
-  // 如果敌方有防御力，检查是否有足够的胜算
-  // 要求NPC战斗力至少是敌方的1.2倍才会发动攻击（确保有较大胜算）
+  // 有情报：先看该星全部战斗舰队能否满足 1.2 倍胜算
   const MIN_WIN_RATIO = 1.2
-  if (totalEnemyPower > 0 && npcPower < totalEnemyPower * MIN_WIN_RATIO) {
-    // NPC战斗力不足，不发动攻击
-    return null
+  const requiredPower = totalEnemyPower * MIN_WIN_RATIO
+  const fullPower = calculateFleetCombatPower(available)
+  if (fullPower < requiredPower) return null
+
+  // 出击比例：不低于配置比例；若配置比例不足以满足胜算，提高到所需比例（上限 100%）
+  const neededFraction = Math.min(1, requiredPower / fullPower)
+  const dispatchFraction = Math.min(1, Math.max(config.attackFleetSizeRatio, neededFraction))
+
+  const attackFleet: Partial<Fleet> = {}
+  for (const [shipType, count] of Object.entries(available)) {
+    const availableCount = count as number
+    const sendCount = Math.min(availableCount, Math.max(1, Math.ceil(availableCount * dispatchFraction)))
+    attackFleet[shipType as ShipType] = sendCount
   }
+
+  // 保险：出击舰队必须满足 1.2 倍（ceil 后理论上已满足）
+  if (calculateFleetCombatPower(attackFleet) < requiredPower) return null
 
   return attackFleet
 }
@@ -1026,8 +1066,8 @@ export const createNPCAttackMission = (
   spyReport: SpyReport,
   config: DynamicBehaviorConfig
 ): FleetMission | null => {
-  // 选择NPC的最佳星球作为起点
-  const npcPlanet = selectBestNPCPlanet(npc, targetPlanet.position)
+  // [attack-tuning] 攻击任务从“战斗舰队最强”的星球出征（而非最近的任意有船星）
+  const npcPlanet = selectStrongestCombatPlanet(npc, targetPlanet.position)
   if (!npcPlanet) {
     return null
   }
